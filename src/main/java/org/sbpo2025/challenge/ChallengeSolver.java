@@ -2,6 +2,7 @@ package org.sbpo2025.challenge;
 
 import org.apache.commons.lang3.time.StopWatch;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,13 @@ public class ChallengeSolver {
         this.nItems = nItems;
         this.waveSizeLB = waveSizeLB;
         this.waveSizeUB = waveSizeUB;
+    }
+
+    private List<Integer> sumVector(List<Integer> a, List<Integer> b){
+        List<Integer> sum = new ArrayList<Integer>();
+        for (int i = 0; i < a.size(); i++)
+            sum.add(a.get(i) + b.get(i));
+        return sum;
     }
 
     public ChallengeSolution solve(StopWatch stopWatch) {
