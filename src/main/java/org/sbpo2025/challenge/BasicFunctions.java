@@ -7,11 +7,19 @@ import java.util.Map;
 
 public class BasicFunctions {
 
-    protected static List<Integer> sumVector(List<Integer> a, List<Integer> b){
+    protected static List<Integer> sum2Vectors(List<Integer> a, List<Integer> b){
         List<Integer> sum = new ArrayList<Integer>();
         for (int i = 0; i < a.size(); i++)
             sum.add(a.get(i) + b.get(i));
         return sum;
+    }
+
+    protected static float sumVector(List<Integer> vector){
+        float sum = 0;
+        for (int i = 0; i < vector.size(); i++)
+            sum += vector.get(i);
+        return sum;
+
     }
 
     protected static Matrix createMatrixOrders(List<Map<Integer, Integer>> orders, int nItems, int nOrders) {

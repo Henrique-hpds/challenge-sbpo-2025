@@ -61,7 +61,8 @@ public class ChallengeSolver {
     }
 
     public ChallengeSolution solve(StopWatch stopWatch, boolean verbose) {
-        // Implement your solution here
+        System.out.println("Limits: " + waveSizeLB + " <= flow <= " + waveSizeUB);
+        Statistics.expectedRatioLimit(matrixAisles, waveSizeLB, waveSizeUB);
         return null;
     }
 
