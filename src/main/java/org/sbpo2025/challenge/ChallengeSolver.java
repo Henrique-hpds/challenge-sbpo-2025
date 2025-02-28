@@ -11,9 +11,24 @@ import java.util.concurrent.TimeUnit;
 
 public class ChallengeSolver {
     private final long MAX_RUNTIME = 600000; // milliseconds; 10 minutes
+    
+    private int latency;
+    private List<String> memoryItems;
+    private List<String> memoryAisles;
+
+    private float timeBestRatio;
+    private boolean verbose;
+    private int resetThreshold;
+    private List<Integer> totalItemsOrder;
+    private List<Integer> totalItemsRequired;
+
+    private Matrix matrixOrders;
+    private Matrix matrixAisles;
 
     protected List<Map<Integer, Integer>> orders;
     protected List<Map<Integer, Integer>> aisles;
+    protected int nOrders;
+    protected int nAisles;
     protected int nItems;
     protected int waveSizeLB;
     protected int waveSizeUB;
@@ -22,9 +37,46 @@ public class ChallengeSolver {
             List<Map<Integer, Integer>> orders, List<Map<Integer, Integer>> aisles, int nItems, int waveSizeLB, int waveSizeUB) {
         this.orders = orders;
         this.aisles = aisles;
+        this.nOrders = orders.size();
+        this.nAisles = aisles.size();
         this.nItems = nItems;
         this.waveSizeLB = waveSizeLB;
         this.waveSizeUB = waveSizeUB;
+
+        this.resetThreshold = Math.max(nOrders, Math.max(nItems, nAisles));
+        
+        this.memoryItems = new ArrayList<String>();
+        this.memoryAisles = new ArrayList<String>();
+
+        for (int i = 0; i < nItems; i++)
+            this.memoryItems.add("item_" + i);
+        for (int i = 0; i < nAisles; i++)
+            this.memoryAisles.add("aisle_" + i);
+
+        this.matrixOrders = createMatrixOrders();
+        this.matrixAisles = createMatrixAisles();
+
+        this.totalItemsOrder = matrixOrders.sumRow();
+        this.totalItemsRequired = matrixOrders.sumColumn();
+        
+    }
+
+    private void printInfo(){
+        System.out.println("Number of orders: " + nOrders);
+        System.out.println("Number of aisles: " + nAisles);
+        System.out.println("Number of items: " + nItems);
+        System.out.println("Wave size lower bound: " + waveSizeLB);
+        System.out.println("Wave size upper bound: " + waveSizeUB);
+        System.out.println("Orders: " + orders);
+        System.out.println("Aisles: " + aisles);
+    }
+
+    private Matrix createMatrixOrders(){
+        return null;
+    }
+
+    private Matrix createMatrixAisles(){
+        return null;
     }
 
     private List<Integer> sumVector(List<Integer> a, List<Integer> b){
@@ -34,7 +86,7 @@ public class ChallengeSolver {
         return sum;
     }
 
-    public ChallengeSolution solve(StopWatch stopWatch) {
+    public ChallengeSolution solve(StopWatch stopWatch, boolean verbose) {
         // Implement your solution here
         return null;
     }
