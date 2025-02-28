@@ -53,37 +53,11 @@ public class ChallengeSolver {
         for (int i = 0; i < nAisles; i++)
             this.memoryAisles.add("aisle_" + i);
 
-        this.matrixOrders = createMatrixOrders();
-        this.matrixAisles = createMatrixAisles();
+        this.matrixOrders = BasicFunctions.createMatrixOrders(orders, nItems, nOrders);
+        this.matrixAisles = BasicFunctions.createMatrixAisles(aisles, nItems, nAisles);
 
         this.totalItemsOrder = matrixOrders.sumRow();
         this.totalItemsRequired = matrixOrders.sumColumn();
-        
-    }
-
-    private void printInfo(){
-        System.out.println("Number of orders: " + nOrders);
-        System.out.println("Number of aisles: " + nAisles);
-        System.out.println("Number of items: " + nItems);
-        System.out.println("Wave size lower bound: " + waveSizeLB);
-        System.out.println("Wave size upper bound: " + waveSizeUB);
-        System.out.println("Orders: " + orders);
-        System.out.println("Aisles: " + aisles);
-    }
-
-    private Matrix createMatrixOrders(){
-        return null;
-    }
-
-    private Matrix createMatrixAisles(){
-        return null;
-    }
-
-    private List<Integer> sumVector(List<Integer> a, List<Integer> b){
-        List<Integer> sum = new ArrayList<Integer>();
-        for (int i = 0; i < a.size(); i++)
-            sum.add(a.get(i) + b.get(i));
-        return sum;
     }
 
     public ChallengeSolution solve(StopWatch stopWatch, boolean verbose) {

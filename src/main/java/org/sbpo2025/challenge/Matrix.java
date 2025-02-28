@@ -8,8 +8,8 @@ public class Matrix {
     private int nRows;
     private int nCols;
 
-    public Matrix(){
-        this.matrix = new ArrayList<List<Integer>>();
+    public Matrix(List<List<Integer>> matrix){
+        this.matrix = matrix;
         this.nRows = matrix.size();
         this.nCols = matrix.get(0).size();
     }
@@ -55,6 +55,10 @@ public class Matrix {
 
     protected int getElement(int i, int j){
         return matrix.get(i).get(j);
+    }
+
+    protected List<List<Integer>> getMatrix(){
+        return matrix;
     }
 
     protected void setElement(int i, int j, int value){
