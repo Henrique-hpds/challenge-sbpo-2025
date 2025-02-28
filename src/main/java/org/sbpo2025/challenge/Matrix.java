@@ -8,13 +8,13 @@ public class Matrix {
     private int nRows;
     private int nCols;
 
-    public Matrix(List<List<Integer>> matrix){
-        this.matrix = matrix;
+    public Matrix(){
+        this.matrix = new ArrayList<List<Integer>>();
         this.nRows = matrix.size();
         this.nCols = matrix.get(0).size();
     }
 
-    public List<Integer> sumColumn(){
+    protected List<Integer> sumColumn(){
         
         List<Integer> listSum = new ArrayList<Integer>();
         
@@ -30,7 +30,7 @@ public class Matrix {
        
     }
 
-    public List<Integer> sumRow(){
+    protected List<Integer> sumRow(){
         
         List<Integer> listSum = new ArrayList<Integer>();
         
@@ -45,19 +45,19 @@ public class Matrix {
         return listSum;
     }
     
-    public int getNRows(){
+    protected int getNRows(){
         return nRows;
     }
 
-    public int getNCols(){
+    protected int getNCols(){
         return nCols;
     }
 
-    public int getElement(int i, int j){
+    protected int getElement(int i, int j){
         return matrix.get(i).get(j);
     }
 
-    public void setElement(int i, int j, int value){
+    protected void setElement(int i, int j, int value){
         matrix.get(i).set(j, value);
     }
 }
