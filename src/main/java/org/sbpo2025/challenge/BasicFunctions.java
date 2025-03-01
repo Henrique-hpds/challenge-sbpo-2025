@@ -59,4 +59,39 @@ public class BasicFunctions {
         }
         return new Matrix(matrixAisles);
     }
+
+    /* Remove pedidos que são impossíveis de atender devido à falta de itens nos corredores */
+    protected static void removeImpossibleOrders(Matrix matrixOrders, Matrix matrixAisles){
+
+        List<Integer> itemsAvaliable = new ArrayList<>(Collections.nCopies(matrixOrders.getNCols(), 0));
+
+        for (List<Integer> aisle : matrixAisles.getMatrix())
+            for (int i = 0; i < aisle.size(); i++)
+                itemsAvaliable.set(i, itemsAvaliable.get(i) + aisle.get(i));
+
+        int nValidOrders = 0; 
+        int nInvalidOrders = 0;
+
+        for (List<Integer> order : matrixOrders.getMatrix()){
+            
+            boolean valid = true;
+
+            for (int i = 0; i < order.size(); i++){
+                if (order.get(i) > itemsAvaliable.get(i)){
+                    valid = false;
+                    break;
+                }
+            }
+
+            if (valid)
+                nValidOrders++;
+            else{
+                for (int i = 0; i < order.size(); i++)
+                    order.set(i, 0);
+                nInvalidOrders++;
+            }
+        }
+
+        System.out.println("valid orders: " + nValidOrders + " , \033[1minvalid orders: " + nInvalidOrders + " (all removed)\033[0m");
+    }
 }
