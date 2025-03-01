@@ -1,6 +1,7 @@
 package org.sbpo2025.challenge;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,8 @@ class Vertex {
 }
 
 class FlowNetwork {
+    final boolean VERBOSE = true;
+
     Map<Integer, Vertex> vertices;
     List<Map<Integer, Integer>> solverOrders;
     List<Map<Integer, Integer>> solverCorridors;
@@ -48,8 +51,10 @@ class FlowNetwork {
     Integer nItems;
     Integer nCorridors;
     Integer nOrders;
-    public List<Map<Integer, Integer>> matrixOrders;
-    public List<Map<Integer, Integer>> matrixCorridors;
+    Integer waveSizeLB;
+    Integer waveSizeUB;
+    List<List<Integer>> matrixOrders;
+    List<List<Integer>> matrixCorridors;
     ChallengeSolver solver;
 
     public FlowNetwork(
@@ -68,23 +73,40 @@ class FlowNetwork {
         this.nItems = nItems;
         this.nCorridors = aisles.size();
         this.nOrders = orders.size();
+        this.waveSizeLB = waveSizeLB;
+        this.waveSizeUB = waveSizeUB;
 
         createMatrixOrders();
         createMatrixCorridors();
 
+        removeImpossibleOrders();
+
+        linkOrders();
+        linkCorridors();
+
+        printNetwork();
+
+    }
+
+    public void linkOrders() {
         for (int i = 0; i < matrixOrders.size(); i++) {
-            Map<Integer, Integer> order = matrixOrders.get(i);
-            int totalItems = order.values().stream().mapToInt(Integer::intValue).sum();
+            List<Integer> order = matrixOrders.get(i);
+            int totalItems = order.stream().mapToInt(Integer::intValue).sum();
             addOrder(i, totalItems);
 
-            for (Map.Entry<Integer, Integer> entry : order.entrySet()) {
-                int item = entry.getKey();
-                int quantity = entry.getValue();
-                addItem(item);
-                linkOrderToItem(i, item, quantity);
+            boolean allZero = order.stream().allMatch(quantity -> quantity == 0);
+            if (!allZero) {
+                for (Map.Entry<Integer, Integer> entry : solverOrders.get(i).entrySet()) {
+                    int item = entry.getKey();
+                    int quantity = entry.getValue();
+                    addItem(item);
+                    linkOrderToItem(i, item, quantity);
+                }
             }
         }
+    }
 
+    public void linkCorridors() {
         for (int i = 0; i < solverCorridors.size(); i++) {
             Map<Integer, Integer> aisle = solverCorridors.get(i);
             int aisleId = i;
@@ -98,10 +120,9 @@ class FlowNetwork {
             int totalItemsInCorridor = aisle.values().stream().mapToInt(Integer::intValue).sum();
             linkCorridorToSink(aisleId, totalItemsInCorridor);
         }
-
-        printNetwork();
-
     }
+
+    
 
     public void addVertex(int id) {
         if (!vertices.containsKey(id)) {
@@ -197,8 +218,10 @@ class FlowNetwork {
                 } else if (items.contains(edge.to)) {
                     displayTo -= 2;
                 }
-
-                System.out.println("Edge from " + vertexTypeFrom + " " + displayFrom + " to " + vertexTypeTo + " " + displayTo + " with capacity " + edge.capacity + " and flow " + edge.flow);
+                
+                if (!VERBOSE) {
+                    System.out.println("Edge from " + vertexTypeFrom + " " + displayFrom + " to " + vertexTypeTo + " " + displayTo + " with capacity " + edge.capacity + " and flow " + edge.flow);
+                }
             }
         }
     }
@@ -219,27 +242,98 @@ class FlowNetwork {
         }
     }
 
+    private void removeImpossibleOrders() {
+        List<Integer> itemsAvailable = new ArrayList<>();
+        int nValidOrders = 0;
+        int nInvalidOrders = 0;
+
+        for (int i = 0; i < nItems; i++) {
+            itemsAvailable.add(0);
+        }
+
+        for (List<Integer> corridor : matrixCorridors) {
+            for (int idx = 0; idx < nItems; idx++) {
+                itemsAvailable.set(idx, itemsAvailable.get(idx) + corridor.get(idx));
+            }
+        }
+
+        if (VERBOSE) {
+            System.out.println("ITEMS AVAILABLE:" + itemsAvailable);
+        }
+
+        for (List<Integer> order : matrixOrders) {
+            boolean valid = true;
+            for (int idx = 0; idx < order.size(); idx++) {
+                if (order.get(idx) > itemsAvailable.get(idx)) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (valid) {
+                nValidOrders++;
+            } else {
+                Collections.fill(order, 0);
+                nInvalidOrders++;
+            }
+        }
+
+        if (VERBOSE) {
+            System.out.println("valid orders: " + nValidOrders + ", invalid orders: " + nInvalidOrders + " (all removed)");
+        }
+    }
+
     public void createMatrixOrders() {
-        System.out.println("-------------- Creating matrix orders --------------");
         this.matrixOrders = new ArrayList<>();
-        this.solverOrders.forEach(order -> {
-            Map<Integer, Integer> orderMap = new HashMap<>();
+        for (int i = 0; i < this.nOrders; i++) {
+            List<Integer> orderList = new ArrayList<>();
+            for (int j = 0; j < this.nItems; j++) {
+                orderList.add(0);
+            }
+            this.matrixOrders.add(orderList);
+        }
+
+        for (int i = 0; i < this.solverOrders.size(); i++) {
+            int index = i;
+            Map<Integer, Integer> order = this.solverOrders.get(index);
             order.forEach((item, quantity) -> {
-                orderMap.put(item, quantity);
+                this.matrixOrders.get(index).set(item, this.matrixOrders.get(index).get(item) + quantity);
             });
-            this.matrixOrders.add(orderMap);
-        });
+        }
+
+        if (VERBOSE && matrixOrders.size() < 10) {
+            System.out.println("-------------- MATRIX ORDERS --------------");
+            printMatrix(matrixOrders);
+        }
     }
 
     public void createMatrixCorridors() {
-        System.out.println("-------------- Creating matrix corridors --------------");
         this.matrixCorridors = new ArrayList<>();
-        this.solverCorridors.forEach(corridor -> {
-            Map<Integer, Integer> corridorMap = new HashMap<>();
+        for (int i = 0; i < this.nCorridors; i++) {
+            List<Integer> corridorList = new ArrayList<>();
+            for (int j = 0; j < this.nItems; j++) {
+                corridorList.add(0);
+            }
+            this.matrixCorridors.add(corridorList);
+        }
+
+        for (int i = 0; i < this.solverCorridors.size(); i++) {
+            int index = i;
+            Map<Integer, Integer> corridor = this.solverCorridors.get(index);
             corridor.forEach((item, quantity) -> {
-                corridorMap.put(item, quantity);
+                this.matrixCorridors.get(index).set(item, quantity);
             });
-            this.matrixCorridors.add(corridorMap);
-        });
+        }
+
+        if (VERBOSE && matrixCorridors.size() < 10) {
+            System.out.println("-------------- MATRIX CORRIDORS --------------");
+            printMatrix(matrixCorridors);
+        }
     }
+
+    public void printMatrix(List<List<Integer>> matrix) {
+        for (List<Integer> row : matrix) {
+            System.out.println(row);
+        }
+    }
+
 }
