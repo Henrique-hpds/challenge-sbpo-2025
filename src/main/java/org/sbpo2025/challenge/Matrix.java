@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Matrix {
-    private List<List<Integer>> matrix;
+    protected List<List<Integer>> matrix;
     private int nRows;
     private int nCols;
 
@@ -55,10 +55,6 @@ public class Matrix {
 
     protected int getElement(int i, int j){
         return matrix.get(i).get(j);
-    }
-
-    protected List<List<Integer>> getMatrix(){
-        return matrix;
     }
 
     protected void setElement(int i, int j, int value){

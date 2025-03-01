@@ -7,6 +7,37 @@ import java.util.Map;
 
 public class BasicFunctions {
 
+    /*
+     * Inicializa as listas globais IDX_ORDERS e NAME_NODE_ORDERS com base nos pedidos fornecidos.
+     * Esta função itera através da lista de pedidos fornecida e verifica se um pedido contém 
+     * algum item diferente de zero.
+     */
+    protected static Pair<List<Integer>, List<String>> initIdxOrders(Matrix orders){
+        List<Integer> idxOrders = new ArrayList<>();
+        List<String> nameNodeOrders = new ArrayList<>();
+
+        for (int i = 0; i < orders.getNRows(); i++){
+            List<Integer> order = orders.matrix.get(i);
+            boolean onlyZero = true;
+
+            for (int j = 0; j < order.size(); j++){
+                if (order.get(j) != 0){
+                    onlyZero = false;
+                    break;
+                }
+            }
+
+            if (!onlyZero){
+                idxOrders.add(i);
+                nameNodeOrders.add("order_" + i);
+            }
+        }
+
+
+        return new Pair<>(idxOrders, nameNodeOrders);
+
+    }
+
     protected static List<Integer> sum2Vectors(List<Integer> a, List<Integer> b){
         List<Integer> sum = new ArrayList<Integer>();
         for (int i = 0; i < a.size(); i++)
@@ -60,19 +91,37 @@ public class BasicFunctions {
         return new Matrix(matrixAisles);
     }
 
-    /* Remove pedidos que são impossíveis de atender devido à falta de itens nos corredores */
+    /* 
+     * Cria um grafo direcionado com capacidades e fluxos para modelar o problema. 
+     * O grafo consiste em 3 tipos de nós: pedidos, itens e corredores. 
+     * Pedidos são conectados a itens, itens são conectados a corredores, 
+     * corredores são conectados ao destino, e pedidos são conectados à fonte.
+     * 
+     * As capacidades são definidas como o número de itens em um pedido, o
+     * número de itens em um corredor, já entre o pedido e a fonte a capacidade é o total de itens 
+     * do pedido e de maneira semelhante entre o corredor e o destino a capacidade é o total de itens do corredor.
+     */
+    protected static Graph createGraph(Matrix matrixAisles, Matrix matrixOrders){
+
+
+        return null;
+    }
+        
+    /*
+     * Remove pedidos que são impossíveis de atender devido à falta de itens nos corredores.
+     */
     protected static void removeImpossibleOrders(Matrix matrixOrders, Matrix matrixAisles){
 
         List<Integer> itemsAvaliable = new ArrayList<>(Collections.nCopies(matrixOrders.getNCols(), 0));
 
-        for (List<Integer> aisle : matrixAisles.getMatrix())
+        for (List<Integer> aisle : matrixAisles.matrix)
             for (int i = 0; i < aisle.size(); i++)
                 itemsAvaliable.set(i, itemsAvaliable.get(i) + aisle.get(i));
 
         int nValidOrders = 0; 
         int nInvalidOrders = 0;
 
-        for (List<Integer> order : matrixOrders.getMatrix()){
+        for (List<Integer> order : matrixOrders.matrix){
             
             boolean valid = true;
 

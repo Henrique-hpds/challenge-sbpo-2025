@@ -32,7 +32,7 @@ public class Graph {
     }
         
 
-    public Graph(List<List<Integer>> matrixCorridors, List<List<Integer>> matrixOrders){
+    public Graph(Matrix matrixAisles, Matrix matrixOrders){
 
     }
 }

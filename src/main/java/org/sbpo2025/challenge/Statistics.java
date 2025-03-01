@@ -104,7 +104,7 @@ public class Statistics{
         List<Integer> totalEachOrder = matrix.sumRow();
         List<Integer> totalTypeItems = new ArrayList<>();
 
-        for (List<Integer> row : matrix.getMatrix()) {
+        for (List<Integer> row : matrix.matrix) {
             int count = 0;
             for (int item : row) {
                 if (item != 0) {

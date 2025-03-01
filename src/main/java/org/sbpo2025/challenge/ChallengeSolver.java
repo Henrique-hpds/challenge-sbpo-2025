@@ -22,6 +22,9 @@ public class ChallengeSolver {
     private List<Integer> totalItemsOrder;
     private List<Integer> totalItemsRequired;
 
+    private List<Integer> idxOrders;
+    private List<String> nameNodeOrders;
+
     private Matrix matrixOrders;
     private Matrix matrixAisles;
 
@@ -58,6 +61,12 @@ public class ChallengeSolver {
 
         this.totalItemsOrder = matrixOrders.sumRow();
         this.totalItemsRequired = matrixOrders.sumColumn();
+
+        Pair<List<Integer>, List<String>> pair = BasicFunctions.initIdxOrders(matrixOrders);
+        this.idxOrders = pair.getKey();
+        this.nameNodeOrders = pair.getValue();
+        
+        System.out.println("a");
     }
 
     public ChallengeSolution solve(StopWatch stopWatch, boolean verbose) {
@@ -71,6 +80,8 @@ public class ChallengeSolver {
             System.out.println("\n");
             Statistics.statistics(matrixAisles, "corredor");
         }
+
+        Graph graph = new Graph(matrixAisles, matrixOrders);
 
         return null;
     }
