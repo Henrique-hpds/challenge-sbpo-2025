@@ -121,7 +121,7 @@ public class Challenge {
         challenge.readInput(args[0]);
         var challengeSolver = new ChallengeSolver(
                 challenge.orders, challenge.aisles, challenge.nItems, challenge.waveSizeLB, challenge.waveSizeUB);
-        ChallengeSolution challengeSolution = challengeSolver.solve(stopWatch, false);
+        ChallengeSolution challengeSolution = challengeSolver.solve(stopWatch, true);
 
         challenge.writeOutput(challengeSolution, args[1]);
 

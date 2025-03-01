@@ -66,7 +66,12 @@ public class ChallengeSolver {
         Statistics.expectedRatioLimit(matrixAisles, waveSizeLB, waveSizeUB);
         BasicFunctions.removeImpossibleOrders(matrixOrders, matrixAisles);
         
-        
+        if (verbose){
+            Statistics.statistics(matrixOrders, "pedido");
+            System.out.println("\n");
+            Statistics.statistics(matrixAisles, "corredor");
+        }
+
         return null;
     }
 
