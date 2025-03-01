@@ -2,7 +2,6 @@ package org.sbpo2025.challenge;
 
 import org.apache.commons.lang3.time.StopWatch;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -11,27 +10,9 @@ import java.util.concurrent.TimeUnit;
 
 public class ChallengeSolver {
     private final long MAX_RUNTIME = 600000; // milliseconds; 10 minutes
-    
-    private int latency;
-    private List<String> memoryItems;
-    private List<String> memoryAisles;
-
-    private float timeBestRatio;
-    private boolean verbose;
-    private int resetThreshold;
-    private List<Integer> totalItemsOrder;
-    private List<Integer> totalItemsRequired;
-
-    private List<Integer> idxOrders;
-    private List<String> nameNodeOrders;
-
-    private Matrix matrixOrders;
-    private Matrix matrixAisles;
 
     protected List<Map<Integer, Integer>> orders;
     protected List<Map<Integer, Integer>> aisles;
-    protected int nOrders;
-    protected int nAisles;
     protected int nItems;
     protected int waveSizeLB;
     protected int waveSizeUB;
@@ -40,49 +21,14 @@ public class ChallengeSolver {
             List<Map<Integer, Integer>> orders, List<Map<Integer, Integer>> aisles, int nItems, int waveSizeLB, int waveSizeUB) {
         this.orders = orders;
         this.aisles = aisles;
-        this.nOrders = orders.size();
-        this.nAisles = aisles.size();
         this.nItems = nItems;
         this.waveSizeLB = waveSizeLB;
         this.waveSizeUB = waveSizeUB;
-
-        this.resetThreshold = Math.max(nOrders, Math.max(nItems, nAisles));
-        
-        this.memoryItems = new ArrayList<String>();
-        this.memoryAisles = new ArrayList<String>();
-
-        for (int i = 0; i < nItems; i++)
-            this.memoryItems.add("item_" + i);
-        for (int i = 0; i < nAisles; i++)
-            this.memoryAisles.add("aisle_" + i);
-
-        this.matrixOrders = BasicFunctions.createMatrixOrders(orders, nItems, nOrders);
-        this.matrixAisles = BasicFunctions.createMatrixAisles(aisles, nItems, nAisles);
-
-        this.totalItemsOrder = matrixOrders.sumRow();
-        this.totalItemsRequired = matrixOrders.sumColumn();
-
-        Pair<List<Integer>, List<String>> pair = BasicFunctions.initIdxOrders(matrixOrders);
-        this.idxOrders = pair.getKey();
-        this.nameNodeOrders = pair.getValue();
-        
-        System.out.println("a");
     }
 
-    public ChallengeSolution solve(StopWatch stopWatch, boolean verbose) {
-        System.out.println("Limits: " + waveSizeLB + " <= flow <= " + waveSizeUB);
-        
-        Statistics.expectedRatioLimit(matrixAisles, waveSizeLB, waveSizeUB);
-        BasicFunctions.removeImpossibleOrders(matrixOrders, matrixAisles);
-        
-        if (verbose){
-            Statistics.statistics(matrixOrders, "pedido");
-            System.out.println("\n");
-            Statistics.statistics(matrixAisles, "corredor");
-        }
-
-        Graph graph = new Graph(matrixAisles, matrixOrders);
-
+    public ChallengeSolution solve(StopWatch stopWatch) {
+        System.out.println("Solving challenge...");
+        FlowNetwork flowNetwork = new FlowNetwork(orders, aisles, nItems, waveSizeLB, waveSizeUB);
         return null;
     }
 
