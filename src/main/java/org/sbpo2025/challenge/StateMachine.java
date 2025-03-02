@@ -26,7 +26,7 @@ public class StateMachine {
 
     public ChallengeSolution run() {
         
-        
+        choiceCorridorPriority(graph);
 
         return null;
     }
@@ -35,8 +35,8 @@ public class StateMachine {
     private List<Integer> choiceCorridorPriority(Graph graph) {
         List<List<Integer>> corridorData = new ArrayList<>();
         int idSink = graph.getSinkId();
-        for (Integer corridor : graph.corridors) {
-            int idCorridor = graph.getCorridorId(corridor);
+        for (Integer idCorridor : graph.corridors) {
+            System.out.println("Corridor: " + idCorridor);
             Map<Integer, Edge> items = graph.getVertex(idCorridor).getReverseEdges();
             int diverseItems = 0; // quantidade e intens não saturados
             for (Map.Entry<Integer, Edge> entry : items.entrySet()) {
@@ -51,7 +51,7 @@ public class StateMachine {
 
             corridorData.add(
                 List.of(
-                    corridor,
+                    idCorridor,
                     diverseItems,
                     corridorCapacity,
                     maxFlowToSink ? 1 : 0,
