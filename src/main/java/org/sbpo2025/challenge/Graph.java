@@ -7,13 +7,21 @@ import java.util.List;
 import java.util.Map;
 
 class Edge {
-    public int from, to, capacity, flow;
+    int from, to, capacity, flow;
 
     public Edge(int from, int to, int capacity, int flow) {
         this.from = from;
         this.to = to;
         this.capacity = capacity;
         this.flow = 0;
+    }
+
+    public int getCapacity() {
+        return capacity;
+    }
+
+    public int getFlow() {
+        return flow;
     }
 
     public int residualCapacity() {
@@ -27,20 +35,39 @@ class Edge {
 
 class Vertex {
     int id;
-    public List<Edge> edges;
-    public List<Edge> reverseEdges;
+    Map<Integer, Edge> edges;
+    Map<Integer, Edge> reverseEdges;
 
     public Vertex(int id) {
         this.id = id;
-        this.edges = new ArrayList<>();
+        this.edges = new HashMap<>();
+        this.reverseEdges = new HashMap<>();
+    }
+
+    public Map<Integer, Edge> getEdges() {
+        return edges;
+    }
+
+    public Map<Integer, Edge> getReverseEdges() {
+        return reverseEdges;
+    }
+
+    public int getFlow(int to) {
+        Edge edge = edges.get(to);
+        return edge != null ? edge.flow : 0;
+    }
+
+    public int getCapacity(int to) {
+        Edge edge = edges.get(to);
+        return edge != null ? edge.capacity : 0;
     }
 
     public void addEdge(Edge edge) {
-        edges.add(edge);
+        edges.put(edge.to, edge);
     }
 
     public void addReverseEdge(Edge edge) {
-        reverseEdges.add(edge);
+        reverseEdges.put(edge.to, edge);
     }
 }
 
@@ -109,7 +136,8 @@ class Graph {
             id = entry.getKey();
             vertex = entry.getValue();
             this.vertices.put(id, new Vertex(id));
-            for (Edge edge : vertex.edges) {
+            for (Map.Entry<Integer, Edge> edgeEntry : vertex.edges.entrySet()) {
+                Edge edge = edgeEntry.getValue();
                 this.vertices.get(id).addEdge(
                     new Edge(
                         edge.from,
@@ -119,7 +147,8 @@ class Graph {
                     )
                 );
             }
-            for (Edge edge : vertex.reverseEdges) {
+            for (Map.Entry<Integer, Edge> reverseEntry : vertex.reverseEdges.entrySet()) {
+                Edge edge = reverseEntry.getValue();
                 this.vertices.get(id).addReverseEdge(
                     new Edge(
                         edge.from,
@@ -143,6 +172,34 @@ class Graph {
         this.solver = null;
         this.solverOrders = null;
         this.solverCorridors = null;
+    }
+
+    public Map<Integer, Vertex> getVertices() {
+        return new HashMap<>(vertices);
+    }
+
+    public Vertex getVertex(int id) {
+        return vertices.get(id);
+    }
+
+    public int getSourceId() {
+        return 0;
+    }
+
+    public int getSinkId() {
+        return 1;
+    }
+
+    public int getOrderId(int index) {
+        return index + nItems + nCorridors + 2;
+    }
+
+    public int getItemId(int index) {
+        return index + 2;
+    }
+
+    public int getCorridorId(int index) {
+        return index + nItems + 2;
     }
 
     public Graph clone() {
@@ -239,31 +296,25 @@ class Graph {
         addEdge(adjustedCorridorId, 1, totalItems);
     }
 
-    public List<Edge> getEdges(int vertexId) {
-        return vertices.get(vertexId).edges;
+    public Map<Integer, Edge> getEdges(int vertexId) {
+        return vertices.get(vertexId).getEdges();
     }
 
     public int getResidualCapacity(int from, int to) {
-        for (Edge edge : vertices.get(from).edges) {
-            if (edge.to == to) {
-                return edge.residualCapacity();
-            }
-        }
-        return 0;
+        Edge edge = vertices.get(from).getEdges().get(to);
+        return edge != null ? edge.residualCapacity() : 0;
     }
 
     public void addFlow(int from, int to, int flow) {
-        for (Edge edge : vertices.get(from).edges) {
-            if (edge.to == to) {
-                edge.addFlow(flow);
-                break;
-            }
+        Edge edge = vertices.get(from).getEdges().get(to);
+        if (edge != null) {
+            edge.addFlow(flow);
         }
     }
 
     public void printNetwork() {
         for (Vertex vertex : vertices.values()) {
-            for (Edge edge : vertex.edges) {
+            for (Edge edge : vertex.edges.values()) {
                 String vertexTypeFrom = getVertexType(edge.from);
                 String vertexTypeTo = getVertexType(edge.to);
                 int displayFrom = edge.from;
