@@ -219,7 +219,9 @@ class Graph {
                 for (Map.Entry<Integer, Integer> entry : solverOrders.get(i).entrySet()) {
                     int item = entry.getKey();
                     int quantity = entry.getValue();
-                    addItem(item);
+                    if (!items.contains(item + 2)) {
+                        addItem(item);
+                    }
                     linkOrderToItem(i, item, quantity);
                 }
             }
