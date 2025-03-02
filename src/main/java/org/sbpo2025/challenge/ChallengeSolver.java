@@ -28,7 +28,8 @@ public class ChallengeSolver {
 
     public ChallengeSolution solve(StopWatch stopWatch) {
         System.out.println("Solving challenge...");
-        FlowNetwork flowNetwork = new FlowNetwork(orders, aisles, nItems, waveSizeLB, waveSizeUB);
+        Graph graph = new Graph(orders, aisles, nItems, waveSizeLB, waveSizeUB);
+        StateMachine stateMachine = new StateMachine(graph);
         return null;
     }
 

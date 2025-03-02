@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.Map;
 
 class Edge {
-    int from, to, capacity, flow;
+    public int from, to, capacity, flow;
 
-    public Edge(int from, int to, int capacity) {
+    public Edge(int from, int to, int capacity, int flow) {
         this.from = from;
         this.to = to;
         this.capacity = capacity;
@@ -27,7 +27,8 @@ class Edge {
 
 class Vertex {
     int id;
-    List<Edge> edges;
+    public List<Edge> edges;
+    public List<Edge> reverseEdges;
 
     public Vertex(int id) {
         this.id = id;
@@ -37,27 +38,31 @@ class Vertex {
     public void addEdge(Edge edge) {
         edges.add(edge);
     }
+
+    public void addReverseEdge(Edge edge) {
+        reverseEdges.add(edge);
+    }
 }
 
-class FlowNetwork {
+class Graph {
     final boolean VERBOSE = true;
 
-    Map<Integer, Vertex> vertices;
-    List<Map<Integer, Integer>> solverOrders;
-    List<Map<Integer, Integer>> solverCorridors;
+    public Map<Integer, Vertex> vertices;
+    public List<Map<Integer, Integer>> solverOrders;
+    public List<Map<Integer, Integer>> solverCorridors;
+    public List<List<Integer>> matrixOrders;
+    public List<List<Integer>> matrixCorridors;
+    public Integer nItems;
+    public Integer nCorridors;
+    public Integer nOrders;
     List<Integer> orders;
     List<Integer> corridors;
     List<Integer> items;
-    Integer nItems;
-    Integer nCorridors;
-    Integer nOrders;
     Integer waveSizeLB;
     Integer waveSizeUB;
-    List<List<Integer>> matrixOrders;
-    List<List<Integer>> matrixCorridors;
     ChallengeSolver solver;
 
-    public FlowNetwork(
+    public Graph(
         List<Map<Integer, Integer>> orders,
         List<Map<Integer, Integer>> aisles,
         int nItems,
@@ -85,7 +90,65 @@ class FlowNetwork {
         linkCorridors();
 
         printNetwork();
+    }
 
+    public Graph(
+        Map<Integer, Vertex> vertices,
+        List<Integer> items,
+        List<Integer> orders,
+        List<Integer> corridors,
+        List<List<Integer>> matrixOrders,
+        List<List<Integer>> matrixCorridors,
+        int nItems,
+        int waveSizeLB,
+        int waveSizeUB
+    ) {
+        int id;
+        Vertex vertex;
+        for (var entry : vertices.entrySet()) {            
+            id = entry.getKey();
+            vertex = entry.getValue();
+            this.vertices.put(id, new Vertex(id));
+            for (Edge edge : vertex.edges) {
+                this.vertices.get(id).addEdge(
+                    new Edge(
+                        edge.from,
+                        edge.to,
+                        edge.capacity,
+                        edge.flow
+                    )
+                );
+            }
+            for (Edge edge : vertex.reverseEdges) {
+                this.vertices.get(id).addReverseEdge(
+                    new Edge(
+                        edge.from,
+                        edge.to,
+                        edge.capacity,
+                        edge.flow
+                    )
+                );
+            }
+        }
+        this.matrixOrders = matrixOrders;
+        this.matrixCorridors = matrixCorridors;
+        this.items = items;
+        this.orders = orders;
+        this.corridors = corridors;
+        this.nItems = nItems;
+        this.nCorridors = corridors.size();
+        this.nOrders = orders.size();
+        this.waveSizeLB = waveSizeLB;
+        this.waveSizeUB = waveSizeUB;
+        this.solver = null;
+        this.solverOrders = null;
+        this.solverCorridors = null;
+    }
+
+    public Graph clone() {
+        return new Graph(
+            vertices, items, orders, corridors, matrixOrders, matrixCorridors, nItems, waveSizeLB, waveSizeUB
+        );
     }
 
     public void linkOrders() {
@@ -119,10 +182,9 @@ class FlowNetwork {
 
             int totalItemsInCorridor = aisle.values().stream().mapToInt(Integer::intValue).sum();
             linkCorridorToSink(aisleId, totalItemsInCorridor);
+            
         }
     }
-
-    
 
     public void addVertex(int id) {
         if (!vertices.containsKey(id)) {
@@ -133,8 +195,12 @@ class FlowNetwork {
     public void addEdge(int from, int to, int capacity) {
         addVertex(from);
         addVertex(to);
-        Edge edge = new Edge(from, to, capacity);
+        Edge edge = new Edge(from, to, capacity, 0);
         vertices.get(from).addEdge(edge);
+
+        Edge reverseEdge = new Edge(to, from, 0, 0);
+        vertices.get(to).addReverseEdge(reverseEdge);
+
     }
 
     public void addOrder(int id, int totalItems) {
