@@ -34,9 +34,19 @@ public class StateMachine {
 
     public ChallengeSolution run() {
         
-        choiceCorridorPriority(graph);
-        choiceItemPriority(graph);
-        choiceOrderPriority(graph);
+
+        List<Integer> corridorPriority = choiceCorridorPriority(graph);
+        List<Integer> itemPriority = choiceItemPriority(graph);
+        List<Integer> orderPriority = choiceOrderPriority(graph);
+
+        Map<Integer, Integer> parent = graph.findAugmentingPath(corridorPriority, itemPriority, orderPriority);
+        System.out.println("Parent: " + parent);
+
+        if(graph.augmentFlow(parent)) {
+            System.out.println("Flow augmented");
+        } else {
+            System.out.println("Flow not augmented");
+        }
 
         return null;
     }
@@ -200,6 +210,18 @@ public class StateMachine {
             System.out.println("Order priority: " + sortedOrders);
 
         return sortedOrders;
+    }
+
+    private Map<Integer, Integer> updatePriorities() {
+        if (VERBOSE) {
+            System.out.println("Updating priorities...");
+        }
+
+        List<Integer> corridorPriority = choiceCorridorPriority(graph);
+        List<Integer> itemPriority = choiceItemPriority(graph);
+        List<Integer> orderPriority = choiceOrderPriority(graph);
+
+        return graph.findAugmentingPath(corridorPriority, itemPriority, orderPriority);
     }
 
 }

@@ -3,8 +3,10 @@ package org.sbpo2025.challenge;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class Edge {
     int from, to, capacity, flow;
@@ -88,6 +90,7 @@ class Graph {
     Integer waveSizeLB;
     Integer waveSizeUB;
     ChallengeSolver solver;
+    Integer totalFlow;
 
     public Graph(
         List<Map<Integer, Integer>> orders,
@@ -107,6 +110,7 @@ class Graph {
         this.nOrders = orders.size();
         this.waveSizeLB = waveSizeLB;
         this.waveSizeUB = waveSizeUB;
+        this.totalFlow = 0;
 
         createMatrixOrders();
         createMatrixCorridors();
@@ -359,6 +363,62 @@ class Graph {
         } else {
             return "Unknown";
         }
+    }
+
+    public boolean augmentFlow(Map<Integer, Integer> parent) {
+        int maxFlow = this.waveSizeUB - this.totalFlow;
+        int flow = maxFlow;
+        int v = getSinkId();
+        Set<Integer> visitedNodes = new HashSet<>();
+
+        while (v != getSourceId()) {
+            if (visitedNodes.contains(v)) {
+                throw new RuntimeException("Infinite loop detected in augmentFlow");
+            }
+            visitedNodes.add(v);
+            int u = parent.get(v);
+            flow = Math.min(flow, getResidualCapacity(u, v));
+            if (flow < 0) {
+                System.out.println("\033[1m\033[91mO Kant Fez merda\033[0m");
+                System.exit(1);
+            }
+            v = u;
+        }
+
+        v = getSinkId();
+        while (v != getSourceId()) {
+            int u = parent.get(v);
+            addFlow(u, v, flow);
+            addFlow(v, u, -flow);
+            v = u;
+        }
+        this.totalFlow += flow;
+
+        return flow > 0;
+    }
+
+    public Map<Integer, Integer> findAugmentingPath(List<Integer> corridors, List<Integer> items, List<Integer> orders) {
+        Map<Integer, Integer> parent = new HashMap<>();
+        for (int corridor : corridors) {
+            for (int item : items) {
+                if (getResidualCapacity(item, corridor) > 0) {
+                    for (int order : orders) {
+                        if (getResidualCapacity(order, item) > 0) {
+                            parent.put(getSinkId(), corridor);
+                            parent.put(corridor, item);
+                            parent.put(item, order);
+                            parent.put(order, getSourceId());
+                            return parent;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (VERBOSE) 
+            System.out.println("No augmenting path found");
+
+        return parent;
     }
 
     private void removeImpossibleOrders() {
