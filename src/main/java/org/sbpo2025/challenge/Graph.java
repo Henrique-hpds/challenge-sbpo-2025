@@ -74,7 +74,7 @@ class Vertex {
 }
 
 class Graph {
-    final boolean VERBOSE = true;
+    final boolean VERBOSE = false;
 
     public Map<Integer, Vertex> vertices;
     public Integer totalFlow;
@@ -137,6 +137,7 @@ class Graph {
     ) {
         int id;
         Vertex vertex;
+        this.vertices = new HashMap<>();
         for (var entry : vertices.entrySet()) {            
             id = entry.getKey();
             vertex = entry.getValue();
@@ -351,7 +352,7 @@ class Graph {
                     displayTo -= 2;
                 }
                 
-                if (!VERBOSE) {
+                if (VERBOSE) {
                     System.out.println("Edge from " + vertexTypeFrom + " " + displayFrom + " to " + vertexTypeTo + " " + displayTo + " with capacity " + edge.capacity + " and flow " + edge.flow);
                 }
             }
@@ -440,6 +441,15 @@ class Graph {
             System.out.println("No augmenting path found");
 
         return parent;
+    }
+
+    public void resetFlow() {
+        for (Vertex vertex : vertices.values()) {
+            for (Edge edge : vertex.edges.values()) {
+                edge.flow = 0;
+            }
+        }
+        this.totalFlow = 0;
     }
 
     private void removeImpossibleOrders() {

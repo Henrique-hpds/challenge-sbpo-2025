@@ -25,7 +25,7 @@ run:
 	$(JAVA) -jar $(JAR_FILE) $(INSTANCE_FILE) $(RESULT_FILE)
 	@if [ -f $(RESULT_FILE) ]; then python3 checker.py $(INSTANCE_FILE) $(RESULT_FILE); \
 	else echo "Result file does not exist: $(RESULT_FILE)"; fi
+	python3 update_best_solution.py $(INSTANCE_FILE) $(RESULT_FILE)
 
 clean:
 	rm -rf $(OUT_DIR)
-

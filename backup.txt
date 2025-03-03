@@ -1,0 +1,34 @@
+        while (true) {
+            Map<Integer, Integer> parent = graph.findAugmentingPath(corridorPriority, itemPriority, orderPriority);
+            
+            if(graph.augmentFlow(parent)) {
+                if (VERBOSE)
+                    printParent(parent);
+            } else {
+                if (VERBOSE)
+                    System.out.println("Flow not augmented");
+                break;
+            }
+            if (stoppingCondition()) {
+                break;
+            }
+            iterations++;
+            float ratio = objectiveFunction();
+
+            prevInfo = currentInfo;
+            currentInfo = new IterationInfo(graph.totalFlow, graph, ratio, iterations, startTime, usedCorridors, ordersCompleted); 
+            if (currentInfo.compareTo(bestInfo) > 0) {
+                bestInfo = currentInfo;
+            }
+
+            System.out.println("Total flow: " + graph.totalFlow);
+        }
+
+        analyzeFlow(2, 500);
+        System.out.println("Objective function: " + objectiveFunction());
+
+        System.out.println("Used corridors: " + usedCorridors);
+        System.out.println("Orders completed: " + ordersCompleted);
+
+        Set<Integer> setOrdersCompleted = new HashSet<>(ordersCompleted);
+        Set<Integer> setUsedCorridors = new HashSet<>(usedCorridors);

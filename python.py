@@ -134,3 +134,248 @@ def find_completed_orders(graph: nx.DiGraph, matrix_orders: List[List[int]]) -> 
            orders_incomplete.append(idx)
 
     return orders_completed, orders_incomplete, total_required
+
+
+
+
+
+def state_machine(
+    graph: nx.DiGraph,
+    lb: int,
+    ub: int,
+    file_path: str,
+    matrix_orders: List[List[int]],
+    matrix_corridors: List[List[int]]
+) -> Tuple[int, nx.DiGraph]:
+    """
+    Calcula o fluxo de custo mínimo respeitando os limites inferior (lb) e superior (ub).
+    Utiliza uma abordagem iterativa com otimizações baseadas em heurísticas e resets estratégicos.
+    """
+    global START_TIME, LEN_CORRIDORS, MEMORY_CORRIDORS
+    global BEST_GRAPH, BEST_TOTAL_FLOW, COUNTER, MAX_ITERATIONS
+    global BEST_RATIO, TIME_BEST_RATIO, RESTART_GRAPH, VERBOSE
+    global RESET_THRESHOLD, THRESHOLD_LOOP_CORRIDORS
+    global HARD_RESET, MAX_HARD_RESET, REPEAT
+
+    total_flow = 0
+    residual_graph = init_residual_graph(graph)
+
+    # Inicializa dicionários para armazenar fluxos de itens e corredores
+    iteration_count = 0
+    best_iteration = float("inf")
+    list_corridors = []
+    current_ratio = 0
+    previous_ratio = -1
+
+    # Armazena o melhor estado encontrado até o momento
+    BEST_GRAPH = residual_graph.copy()
+    BEST_TOTAL_FLOW = 0
+    BEST_RATIO = 0
+    history = []
+    previous_best_solution = time.time()
+
+    maximum_flow_enable = False
+
+    max_ub = 5
+    counter_ub = 0
+
+    # Executa a iteração até atingir o limite de tempo ou o critério de parada
+    try:
+        while True:
+            ################### EXPANSÃO EM PRIORIDADES################
+            # Tenta aumentar o fluxo no grafo residual por meio de prioridade
+
+            parent = priority_choice(residual_graph)
+            if not parent:
+                print("\033[1m\033[91mNo augmenting path found.\033[0m")
+                break
+
+            total_flow = augment_flow(residual_graph, parent, total_flow, ub)
+
+            ################## EXPANSÃO BASEADA EM CORREDORES ##################
+            list_corridors = []
+            for corridor in MEMORY_CORRIDORS:
+                if residual_graph[corridor][SINK]["flow"] != 0:
+                    list_corridors.append(int(corridor.replace("corridor_", "")))
+            
+            new_total_flow = expand_flow_by_corridors(residual_graph, total_flow, list_corridors, ub)
+            aux = 0
+            for corridor in list_corridors:
+                aux += residual_graph[f"corridor_{corridor}"]["sink"]["flow"]
+
+            #talvez seja interassante não saturar o corredor, mas sim tentar aumentar o fluxo até um certo ponto
+            counter = 0
+            THRESHOLD_LOOP_CORRIDORS = 1000000
+            while new_total_flow > total_flow and counter < THRESHOLD_LOOP_CORRIDORS:
+                COUNTER += 1
+                total_flow = new_total_flow
+                new_total_flow = expand_flow_by_corridors(residual_graph, total_flow, list_corridors, ub)
+                iteration_count+=1
+                counter += 1
+            
+            ################## RESET DE GRAFO ##################
+            #TODO levar em conta a quantidade de corredores uteis, pois isso influencia o quanto o valor objetivo pode piorar
+
+            #TODO... Há casos em que o fluxo esta muito superior a LB, porém a quantidade de items que estão sendo coletados é baixa,
+            #talvez valha a pena criar parâmetros que detectem isso e tratem esse caso 
+
+            # Se a razão atual é menor que 75% da melhor razão e já passou 60 segundos
+            bool_reset = (time.time() - TIME_BEST_RATIO > 60) and (
+                BEST_RATIO != 0 and (current_ratio / BEST_RATIO) < 0.75)  
+            # O fluxo total atual é significativamente maior que o melhor fluxo total e sem a melhor razão
+            bool_reset = bool_reset or (((total_flow - BEST_TOTAL_FLOW) > ub // 5) and BEST_RATIO != 0 and current_ratio / BEST_RATIO < 0.8)  
+            # Ou a razão atual é muito menor que a melhor razão
+            bool_reset = bool_reset or (BEST_RATIO != 0 and (current_ratio / BEST_RATIO) < 0.2)  
+            # E a melhor iteração não é infinito
+            bool_reset = bool_reset and best_iteration != float("inf")  
+            # E a razão atual é menor que 90% da melhor razão
+            bool_reset = (bool_reset and BEST_RATIO != 0 and (current_ratio / BEST_RATIO) < 0.9) 
+            # E o fluxo total atual é significativamente maior que o melhor fluxo total
+            bool_reset = (bool_reset and (total_flow - BEST_TOTAL_FLOW) > ub // 10)
+            # Ou se o tempo está prestes a acabar
+            bool_reset = bool_reset or (time.time() - START_TIME >= STOP_TIME * 0.90)  
+            bool_reset = bool_reset or (
+                previous_ratio != 0
+                and abs(current_ratio / previous_ratio) < 0.3
+                and current_ratio != 0
+                and previous_ratio > 10
+                and total_flow > lb * 1.2
+            )  # E a razão atual é menor que 90% da melhor razão
+
+            bool_reset = bool_reset and not (current_ratio > previous_ratio * 1.03)  # Nunca resetar aumentar 5% a razão
+            bool_reset = bool_reset and not (current_ratio >= 0.9 * BEST_RATIO)
+            bool_reset = bool_reset and not (current_ratio <= 0.5)
+            # ub > 100 para evitar resetar o grafo quando o fluxo é muito baixo 
+            # Reseto o grafo quando o fluxo atinge 90% do fluxo máximo permitido, mas so no "inicio do código"
+            # pois ao final do código posso permitir retornar o fluxo numa tentativa de
+
+            if total_flow >= 0.9 * ub \
+                and not maximum_flow_enable:
+                bool_reset = True
+
+            #definir melhor esse valor de RESET_THRESHOLD
+            if BEST_ITERATION + RESET_THRESHOLD < iteration_count and BEST_RATIO != 0:
+                bool_reset = True
+                RESTART_GRAPH = 10000  #isso força o hard reset
+
+            if bool_reset:  
+                total_flow, best_iteration, current_ratio, residual_graph = reset_graph(
+                    graph,
+                    residual_graph,
+                    iteration_count,
+                    current_ratio,
+                    list_corridors,
+                    ub,
+                    total_flow,
+                    matrix_corridors,
+                    matrix_orders
+                )
+
+            ################## AVALIAÇÃO DA MELHORA ##################
+            if lb <= total_flow:
+                total_items, list_corridors, _, _, reset_graph_bool = analyze_flow(
+                    residual_graph, matrix_orders, matrix_corridors)
+                # total_flow = total_items + removed_total_flow
+                if reset_graph_bool:
+                    total_flow, best_iteration, current_ratio, residual_graph = reset_graph(
+                        graph,
+                        residual_graph,
+                        iteration_count,
+                        current_ratio,
+                        list_corridors,
+                        ub,
+                        total_flow,
+                        matrix_corridors,
+                        matrix_orders
+                    )
+
+                elif len(list_corridors) != 0:
+                    if ub >= total_items >= lb:
+                        current_ratio = total_items / len(list_corridors)
+                        if current_ratio > BEST_RATIO:
+                            previous_best_solution = TIME_BEST_RATIO
+                            copy_correct_flow(
+                                total_flow, residual_graph, current_ratio, iteration_count
+                            )
+                            best_iteration = iteration_count
+
+
+            ###################### HISTÓRICO ######################################
+            if total_flow < lb:
+                current_ratio = 0
+            previous_ratio = current_ratio
+            history.append([total_flow, current_ratio, time.time() - START_TIME, iteration_count])
+
+            ## debugging
+            if total_flow < 0:
+                print("\033[91mError in total flow.\033[0m")
+                break
+            ## debugging
+
+            ################## CRITÉRIOS DE PARADA ##################
+
+            if time.time() - START_TIME >= STOP_TIME * 0.95:
+                print("\033[1m\033[91mTime limit is about to be reached, stopping the algorithm.\033[0m")
+                break
+            if iteration_count > MAX_ITERATIONS:
+                print("\033[1m\033[91mReached maximum number of iterations, stopping the algorithm.\033[0m")
+                break
+            if HARD_RESET >= MAX_HARD_RESET:
+                print("\033[91mHard reset limit reached, stopping the algorithm.\033[0m")
+                break
+            iteration_count += 1
+
+            if VERBOSE and iteration_count % ((LATENCY // 10) + 1) * 10 == 0:
+                print(f"Iteration {iteration_count}: Total flow: {total_flow} | Current ratio {current_ratio:.2f} | Best ratio: {BEST_RATIO:.2f} ({(time.time() - START_TIME):.2f}s)")
+
+            if total_flow >= ub:
+                counter_ub += 1
+                RESTART_GRAPH = 10000
+
+                total_flow, best_iteration, current_ratio, residual_graph = reset_graph(
+                    graph,
+                    residual_graph,
+                    iteration_count,
+                    current_ratio,
+                    list_corridors,
+                    ub,
+                    total_flow,
+                    matrix_corridors,
+                    matrix_orders
+                )
+                if counter_ub > max_ub:
+                    print("\033[1m\033[91mReached upper bound, stopping the algorithm.\033[0m")
+                    break
+
+            # Condições para habilitar o fluxo máximo
+            if (BEST_RATIO != 0):
+                if (time.time() - TIME_BEST_RATIO > 1.2 * (TIME_BEST_RATIO - previous_best_solution) and maximum_flow_enable) and (time.time() - START_TIME > 0.05 * STOP_TIME):
+                    print("\033[91mNo improvement in the last 1.2 * best time, stopping the algorithm.\033[0m")
+                    break
+                elif not maximum_flow_enable:
+                    maximum_flow_enable = True
+                    print("\033[93mAllowing the algorithm to exceed the 0.8 * ub.\033[0m")
+                    _, _, completed_orders, _, _ = analyze_flow(residual_graph, matrix_orders, matrix_corridors)
+                    total_flow, best_iteration, current_ratio, residual_graph = reset_graph_for_max_flow(total_flow, best_iteration, current_ratio, residual_graph, matrix_corridors, matrix_orders, iteration_count, completed_orders)
+
+            # Condições para habilitar o fluxo máximo
+            if ((time.time() - START_TIME) > (0.8 * STOP_TIME) or (iteration_count > 0.8 * MAX_ITERATIONS)) and ub > 100:
+                if not maximum_flow_enable:
+                    maximum_flow_enable = True
+                    print("\033[93mAllowing the algorithm to exceed the 0.8 * ub.\033[0m")
+                    _, _, completed_orders, _, _ = analyze_flow(residual_graph, matrix_orders, matrix_corridors)
+                    total_flow, best_iteration, current_ratio, residual_graph = reset_graph_for_max_flow(total_flow, best_iteration, current_ratio, residual_graph, matrix_corridors, matrix_orders, iteration_count, completed_orders)
+
+
+                    if BEST_RATIO == 0:
+                        print("\033[1m\033[91mNo improvement found, stopping the algorithm.\033[0m")
+                        return None, None
+    
+        generate_log(file_path, history)
+        return BEST_TOTAL_FLOW, BEST_GRAPH
+    
+    except KeyboardInterrupt:
+        print("\nInterrupção detectada dentro do try! Salvando estado...")
+        generate_log(file_path, history)
+        save_all(file_path, BEST_GRAPH, matrix_orders, matrix_corridors)
+        sys.exit(0)
