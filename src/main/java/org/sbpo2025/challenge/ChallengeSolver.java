@@ -30,8 +30,7 @@ public class ChallengeSolver {
         System.out.println("Solving challenge...");
         Graph graph = new Graph(orders, aisles, nItems, waveSizeLB, waveSizeUB);
         StateMachine stateMachine = new StateMachine(graph);
-        stateMachine.run();
-        return null;
+        return stateMachine.run();
     }
 
     /*

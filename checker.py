@@ -53,6 +53,11 @@ class WaveOrderPicking:
 
         # Check if total units picked are within bounds
         if not (self.wave_size_lb <= total_units_picked <= self.wave_size_ub):
+            print("Total units picked are not within bounds", end=" ")
+            if total_units_picked < self.wave_size_lb:
+                print("(less than lower bound)")
+            else:
+                print("(more than upper bound)")
             return False
 
         # Compute all items that are required by the selected orders
@@ -61,13 +66,18 @@ class WaveOrderPicking:
             required_items.update(self.orders[order].keys())
 
         # Check if all required items are available in the visited aisles
+        is_feasible = True
         for item in required_items:
             total_required = sum(self.orders[order].get(item, 0) for order in selected_orders)
             total_available = sum(self.aisles[aisle].get(item, 0) for aisle in visited_aisles)
             if total_required > total_available:
-                return False
+                print("Not all required items are available in the visited aisles for item", item)
+                print("Ammount required per order:", {order: self.orders[order].get(item, 0) for order in selected_orders})
+                print("Total required:", total_required)
+                print("Total available:", total_available)
+                is_feasible = False
 
-        return True
+        return is_feasible
 
     def compute_objective_function(self, selected_orders, visited_aisles):
         total_units_picked = 0

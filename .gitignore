@@ -5,3 +5,5 @@
 **/target/*
 **/libs/*
 **/out/*
+**/venv/*
+**/results/*

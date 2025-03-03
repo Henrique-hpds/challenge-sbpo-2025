@@ -1,6 +1,7 @@
 package org.sbpo2025.challenge;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,9 +16,14 @@ public class StateMachine {
     Integer totalFlow;
     Integer bestFlow;
     Integer bestIteration;
+    List<List<Integer>> matrixOrders;
+    List<List<Integer>> matrixCorridors;
 
     List<Integer> memoryItems;
     int upIndexItem;
+
+    final private List<Integer> totalAvailable;
+    final private List<Integer> totalRequired;
 
     boolean VERBOSE;
 
@@ -26,9 +32,13 @@ public class StateMachine {
         this.iterations = 0;
         this.graph = graph;
         bestGraph = graph;
+        matrixCorridors = graph.matrixCorridors;
+        matrixOrders = graph.matrixOrders;
         totalFlow = 0;
         bestFlow = 0;
         bestIteration = 0;
+        totalAvailable = new ArrayList<>(Collections.nCopies(this.graph.nItems, 0));
+        totalRequired = new ArrayList<>(Collections.nCopies(this.graph.nItems, 0));
         VERBOSE = graph.VERBOSE;
     }
 
@@ -39,18 +49,62 @@ public class StateMachine {
         List<Integer> itemPriority = choiceItemPriority(graph);
         List<Integer> orderPriority = choiceOrderPriority(graph);
 
-        Map<Integer, Integer> parent = graph.findAugmentingPath(corridorPriority, itemPriority, orderPriority);
-        System.out.println("Parent: " + parent);
+        while (true) {
+            Map<Integer, Integer> parent = graph.findAugmentingPath(corridorPriority, itemPriority, orderPriority);
+            
+            if(graph.augmentFlow(parent)) {
+                printParent(parent);
+            } else {
+                System.out.println("Flow not augmented");
+                break;
+            }
 
-        if(graph.augmentFlow(parent)) {
-            System.out.println("Flow augmented");
-        } else {
-            System.out.println("Flow not augmented");
+            System.out.println("Total flow: " + graph.totalFlow);
         }
 
-        return null;
+        analyzeFlow(2, 500);
+        System.out.println("Objective function: " + objectiveFunction());
+
+        System.out.println("Used corridors: " + usedCorridors);
+        System.out.println("Orders completed: " + ordersCompleted);
+
+        Set<Integer> setOrdersCompleted = new HashSet<>(ordersCompleted);
+        Set<Integer> setUsedCorridors = new HashSet<>(usedCorridors);
+
+        return new ChallengeSolution(setOrdersCompleted, setUsedCorridors);
     }
 
+    private float objectiveFunction() {
+        int items = 0;
+        for (int order : ordersCompleted) {
+            items += totalSumList(matrixOrders.get(order));
+        }
+        if (VERBOSE) {
+            System.out.println("Items: " + items + " -- Upper bound: " + graph.waveSizeUB + " -- Lower bound: " + graph.waveSizeLB);
+        }
+        if (items >= graph.waveSizeLB || usedCorridors.size() > 0){
+            return (float) items / usedCorridors.size();
+        }
+        return 0;
+    }
+
+    private void printParent(Map<Integer, Integer> parent) {
+        int corridor = parent.get(graph.getSinkId());
+        int item = parent.get(corridor);
+        int order = parent.get(item);
+        System.out.printf(
+            "Parent: %s %d --(%d/%d)-> %s %d --(%d/%d)-> %s %d --(%d/%d)-> %s %d --(%d/%d)-> %s %d\n", 
+            graph.getVertexType(graph.getSourceId()), graph.getSourceId(),
+            graph.getVertex(graph.getSourceId()).getFlow(order), graph.getVertex(graph.getSourceId()).getCapacity(order),
+            graph.getVertexType(order), graph.getVertexNumber(order),
+            graph.getVertex(order).getFlow(item), graph.getVertex(order).getCapacity(item),
+            graph.getVertexType(item), graph.getVertexNumber(item),
+            graph.getVertex(item).getFlow(corridor), graph.getVertex(item).getCapacity(corridor),
+            graph.getVertexType(corridor), graph.getVertexNumber(corridor),
+            graph.getVertex(corridor).getFlow(graph.getSinkId()), graph.getVertex(corridor).getCapacity(graph.getSinkId()),
+            graph.getVertexType(graph.getSinkId()), graph.getSinkId()
+        );
+    }
 
     private List<Integer> choiceCorridorPriority(Graph graph) {
         List<List<Integer>> corridorData = new ArrayList<>();
@@ -152,7 +206,7 @@ public class StateMachine {
         sortedItems.addAll(memoryItems.subList(upIndexItem, memoryItems.size()));
 
         if (VERBOSE)
-            System.out.print("Orders priority: " + sortedItems + "\n");
+            System.out.print("Item priority: " + sortedItems + "\n");
 
         return sortedItems;
     }
@@ -222,6 +276,58 @@ public class StateMachine {
         List<Integer> orderPriority = choiceOrderPriority(graph);
 
         return graph.findAugmentingPath(corridorPriority, itemPriority, orderPriority);
+    }
+
+    private void sumVectors(List<Integer> list1, List<Integer> list2) {
+        if (list1.size() != list2.size()) {
+            System.out.println("Lists must have the same size");
+            return;
+        }
+        for (int i = 0; i < list1.size(); i++) {
+            list1.set(i, list1.get(i) + list2.get(i));
+        }
+    }
+
+    private void findCompletedOrders() {
+        for (int orderVertex : graph.orders) {
+            int order = graph.getOrderNumber(orderVertex);
+            if (graph.getVertex(graph.getSourceId()).getFlow(orderVertex) == graph.getVertex(graph.getSourceId()).getCapacity(orderVertex)) {
+                ordersCompleted.add(order);
+                sumVectors(totalRequired, matrixOrders.get(order));
+            }
+        }
+    }
+
+    private int totalSumList(List<Integer> list) {
+        return list.stream().mapToInt(Integer::intValue).sum();
+    }
+
+    private List<Integer> usedCorridors;
+    private List<Integer> ordersCompleted;
+
+    private void analyzeFlow(
+        int maxLenCombinations,
+        int maxCombinations
+    ) {
+        usedCorridors = new ArrayList<>();
+    
+        Collections.fill(totalAvailable, 0);
+        Collections.fill(totalRequired, 0);
+    
+        for (int corridor : graph.corridors) {
+            if (graph.getVertex(corridor).getFlow(graph.getSinkId()) > 0) {
+                usedCorridors.add(graph.getCorridorNumber(corridor));
+            }
+        }
+    
+        for (int corridor : usedCorridors) {
+            sumVectors(totalAvailable, matrixCorridors.get(corridor));
+        }
+    
+        ordersCompleted = new ArrayList<>();
+        findCompletedOrders();
+    
+        /* TODO: Remove unnecessary corridors */
     }
 
 }

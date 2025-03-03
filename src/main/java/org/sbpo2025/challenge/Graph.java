@@ -77,6 +77,8 @@ class Graph {
     final boolean VERBOSE = true;
 
     public Map<Integer, Vertex> vertices;
+    public Integer totalFlow;
+
     public List<Map<Integer, Integer>> solverOrders;
     public List<Map<Integer, Integer>> solverCorridors;
     public List<List<Integer>> matrixOrders;
@@ -84,13 +86,12 @@ class Graph {
     public Integer nItems;
     public Integer nCorridors;
     public Integer nOrders;
-    List<Integer> orders;
-    List<Integer> corridors;
-    List<Integer> items;
-    Integer waveSizeLB;
-    Integer waveSizeUB;
-    ChallengeSolver solver;
-    Integer totalFlow;
+    public List<Integer> orders;
+    public List<Integer> corridors;
+    public List<Integer> items;
+    public Integer waveSizeLB;
+    public Integer waveSizeUB;
+    public ChallengeSolver solver;
 
     public Graph(
         List<Map<Integer, Integer>> orders,
@@ -198,12 +199,20 @@ class Graph {
         return index + nItems + nCorridors + 2;
     }
 
+    public int getOrderNumber(int orderId) {
+        return orderId - (nItems + nCorridors + 2);
+    }
+
     public int getItemId(int index) {
         return index + 2;
     }
 
     public int getCorridorId(int index) {
         return index + nItems + 2;
+    }
+
+    public int getCorridorNumber(int corridorId) {
+        return corridorId - nItems - 2;
     }
 
     public Graph clone() {
@@ -216,10 +225,10 @@ class Graph {
         for (int i = 0; i < matrixOrders.size(); i++) {
             List<Integer> order = matrixOrders.get(i);
             int totalItems = order.stream().mapToInt(Integer::intValue).sum();
-            addOrder(i, totalItems);
-
+            
             boolean allZero = order.stream().allMatch(quantity -> quantity == 0);
             if (!allZero) {
+                addOrder(i, totalItems);    
                 for (Map.Entry<Integer, Integer> entry : solverOrders.get(i).entrySet()) {
                     int item = entry.getKey();
                     int quantity = entry.getValue();
@@ -349,7 +358,7 @@ class Graph {
         }
     }
 
-    private String getVertexType(int id) {
+    public String getVertexType(int id) {
         if (id == 0) {
             return "Source";
         } else if (id == 1) {
@@ -362,6 +371,18 @@ class Graph {
             return "Item";
         } else {
             return "Unknown";
+        }
+    }
+
+    public int getVertexNumber(int id) {
+        if (orders.contains(id)) {
+            return id - (nItems + nCorridors + 2);
+        } else if (corridors.contains(id)) {
+            return id - (nItems + 2);
+        } else if (items.contains(id)) {
+            return id - 2;
+        } else {
+            return -1;
         }
     }
 
@@ -513,6 +534,38 @@ class Graph {
         for (List<Integer> row : matrix) {
             System.out.println(row);
         }
+    }
+
+    public Map<Integer, Vertex> getVerticesCopy() {
+        Map<Integer, Vertex> copy = new HashMap<>();
+        for (Map.Entry<Integer, Vertex> entry : vertices.entrySet()) {
+            int id = entry.getKey();
+            Vertex vertex = entry.getValue();
+            copy.put(id, new Vertex(id));
+            for (Map.Entry<Integer, Edge> edgeEntry : vertex.edges.entrySet()) {
+                Edge edge = edgeEntry.getValue();
+                copy.get(id).addEdge(
+                    new Edge(
+                        edge.from,
+                        edge.to,
+                        edge.capacity,
+                        edge.flow
+                    )
+                );
+            }
+            for (Map.Entry<Integer, Edge> reverseEntry : vertex.reverseEdges.entrySet()) {
+                Edge edge = reverseEntry.getValue();
+                copy.get(id).addReverseEdge(
+                    new Edge(
+                        edge.from,
+                        edge.to,
+                        edge.capacity,
+                        edge.flow
+                    )
+                );
+            }
+        }
+        return copy;
     }
 
 }
