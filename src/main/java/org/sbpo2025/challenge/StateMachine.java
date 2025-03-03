@@ -22,9 +22,10 @@ public class StateMachine {
     int hardReset = 0;
 
     List<Integer> memoryItems;
-    int upIndexItem;
+    List<Integer> memoryCorridors;
+    List<Integer> memoryOrders;
 
-    final private float startTime = System.currentTimeMillis() / 1000;
+    private long startTime;
 
     final private List<Integer> totalAvailable;
     final private List<Integer> totalRequired;
@@ -46,19 +47,19 @@ public class StateMachine {
         bestInfo = new IterationInfo(0, graph, 0, 0, startTime, new ArrayList<>(), new ArrayList<>());
         currentInfo = bestInfo;
         prevInfo = bestInfo;
-        maximumFlowEnable = true;
+        usedCorridors = new ArrayList<>();
+        ordersCompleted = new ArrayList<>();
+        maximumFlowEnable = false;
+        startTime = (long) ((double) System.currentTimeMillis() / (long) 1000);
     }
 
     public ChallengeSolution run() {
-        List<Integer> corridorPriority = choiceCorridorPriority(graph);
-        List<Integer> itemPriority = choiceItemPriority(graph);
-        List<Integer> orderPriority = choiceOrderPriority(graph);
         Map<Integer, Integer> parent;
 
         int maxUB = 5, counterUB = 0;
 
         while (true) {
-            parent = graph.findAugmentingPath(corridorPriority, itemPriority, orderPriority);
+            parent = priorityChoice();
             if (parent.isEmpty()) {
                 if (VERBOSE) {
                     System.out.println("\033[1m\033[91mNo augmenting path found.\033[0m");
@@ -66,6 +67,14 @@ public class StateMachine {
                 break;
             }
 
+            if (!graph.expandFlowByCorridors(usedCorridors)) {
+                if (VERBOSE) {
+                    System.out.println("\033[1m\033[91mImpossível expandir.\033[0m");
+                }
+            }
+
+            /* TODO: folga nos corredores */
+            
             graph.augmentFlow(parent);
             if (VERBOSE)
                 printParent(parent);
@@ -102,7 +111,7 @@ public class StateMachine {
             }
 
             if (iterations % 100 == 0) {
-                System.out.println("Iteration: " + iterations + " -- Flow: " + graph.totalFlow + " -- Current ratio " + currentInfo.ratio + " -- Best: " + bestInfo.ratio + " -- Time: " + (System.currentTimeMillis() / 1000 - startTime));
+                System.out.println("Iteration: " + iterations + " -- Flow: " + graph.totalFlow + " -- Current ratio " + currentInfo.ratio + " -- Best: " + bestInfo.ratio + " -- Time: " + ((long) ((double) System.currentTimeMillis() / (long) 1000) - startTime));
             }
 
             if (stoppingCondition()) {
@@ -115,8 +124,8 @@ public class StateMachine {
             iterations++;
         }
 
-        Set<Integer> setOrdersCompleted = new HashSet<>(ordersCompleted);
-        Set<Integer> setUsedCorridors = new HashSet<>(usedCorridors);
+        Set<Integer> setOrdersCompleted = new HashSet<>(bestInfo.usedOrders);
+        Set<Integer> setUsedCorridors = new HashSet<>(bestInfo.usedCorridors);
 
         return new ChallengeSolution(setOrdersCompleted, setUsedCorridors);
     }
@@ -191,7 +200,6 @@ public class StateMachine {
             restartGraph = 0;
             bestIteration = Integer.MAX_VALUE;
             currentInfo = new IterationInfo(0, graph, 0, iterations, startTime, new ArrayList<>(), new ArrayList<>());
-            bestInfo = currentInfo;
         } else if (bestInfo.ratio != 0) {
             // TODO remover de forma aleátoria ou por prioridade os corredores que são usados, 
             // mas que menos comtribuem para o objetivo
@@ -235,6 +243,49 @@ public class StateMachine {
         );
     }
 
+    private void sortPriorities(List<List<Integer>> priorities) {
+        priorities.sort((a, b) -> {
+            for (int i = 1; i < a.size(); i++) {
+                int cmp = b.get(i).compareTo(a.get(i));
+                if (cmp != 0) return cmp;
+            }
+            return 0;
+        });
+    }
+
+    private Map<Integer, Integer> priorityChoice() {
+        if (iterations % latency == 0) {
+            if (VERBOSE) {
+                System.out.println("Updating priorities...");
+            }
+            List<Integer> corridors = choiceCorridorPriority(graph);
+            List<Integer> items = choiceItemPriority(graph);
+            List<Integer> orders = choiceOrderPriority(graph);
+
+            memoryItems = items;
+            memoryCorridors = corridors;
+            memoryOrders = orders;
+            return graph.findAugmentingPath(corridors, items, orders);
+        } else {
+            Map<Integer, Integer> parent = graph.findAugmentingPath(memoryCorridors, memoryItems, memoryOrders);
+            if (parent.isEmpty()) {
+                if (VERBOSE) {
+                    System.out.println("Updating priorities...");
+                }
+                List<Integer> corridors = choiceCorridorPriority(graph);
+                List<Integer> items = choiceItemPriority(graph);
+                List<Integer> orders = choiceOrderPriority(graph);
+
+                memoryItems = items;
+                memoryCorridors = corridors;
+                memoryOrders = orders;
+
+                return graph.findAugmentingPath(corridors, items, orders);
+            }
+            return parent;
+        }
+    }
+
     private List<Integer> choiceCorridorPriority(Graph graph) {
         List<List<Integer>> corridorData = new ArrayList<>();
         int idSink = graph.getSinkId();
@@ -247,28 +298,18 @@ public class StateMachine {
                     diverseItems++;
                 }
             }
-            int corridorCapacity = graph.getVertex(idCorridor).getCapacity(idSink);
-            boolean maxFlowToSink = graph.getVertex(idCorridor).getCapacity(idSink) == 0;
-            boolean maxFlowFromPred = items.values().stream().mapToInt(item -> item.getCapacity()).sum() == 0;
+            int corridorCapacity = graph.getVertex(idCorridor).getCapacity(idSink);// - graph.getVertex(idCorridor).getFlow(idSink);
 
             corridorData.add(
                 List.of(
                     idCorridor,
                     diverseItems,
-                    corridorCapacity,
-                    maxFlowToSink ? 1 : 0,
-                    maxFlowFromPred ? 1 : 0
+                    corridorCapacity
                 )
             );
         }
 
-        corridorData.sort((a, b) -> {
-            for (int i = 1; i < a.size(); i++) {
-                int cmp = b.get(i).compareTo(a.get(i));
-                if (cmp != 0) return cmp;
-            }
-            return 0;
-        });
+        sortPriorities(corridorData);
 
         List<Integer> sortedCorridors = new ArrayList<>();
         for (List<Integer> data : corridorData) {
@@ -286,53 +327,26 @@ public class StateMachine {
         Integer capacity = 0;
         for (Integer idItem : graph.items) {
             int flowToCorridors = 0;
-            int corridorsWithCapacity = 0;
-            boolean zeroCapacityToNeighbors = true;
 
             for (Integer corridor : graph.getVertex(idItem).getEdges().keySet()) {
-                capacity = graph.getVertex(idItem).getCapacity(corridor);
+                capacity = graph.getVertex(idItem).getFlow(corridor);
                 flowToCorridors += capacity;
-                if (capacity > 0) {
-                    corridorsWithCapacity++;
-                }
-            }
-
-            for (Edge edge : graph.getVertex(idItem).getEdges().values()) {
-                if (edge.getCapacity() > 0) {
-                    zeroCapacityToNeighbors = false;
-                    break;
-                }
             }
 
             itemData.add(
                 List.of(
                     idItem,
-                    flowToCorridors,
-                    corridorsWithCapacity,
-                    zeroCapacityToNeighbors ? 1 : 0
+                    flowToCorridors
                 )
             );
         }
 
-        itemData.sort((a, b) -> {
-            int cmp = b.get(1).compareTo(a.get(1));
-            if (cmp != 0) return cmp;
-            cmp = a.get(2).compareTo(b.get(2));
-            if (cmp != 0) return cmp;
-            return b.get(3).compareTo(a.get(3));
-        });
+        sortPriorities(itemData);
 
         List<Integer> sortedItems = new ArrayList<>();
-        if (memoryItems == null || memoryItems.isEmpty()) {
-            memoryItems = new ArrayList<>();
-            for (List<Integer> data : itemData) {
-                memoryItems.add(data.get(0));
-            }
+        for (List<Integer> data : itemData) {
+            sortedItems.add(data.get(0));
         }
-        if (upIndexItem < 0) {
-            upIndexItem = 0;
-        }
-        sortedItems.addAll(memoryItems.subList(upIndexItem, memoryItems.size()));
 
         if (VERBOSE)
             System.out.print("Item priority: " + sortedItems + "\n");
@@ -348,41 +362,30 @@ public class StateMachine {
             int capacityForSelectedItems = 0;
             int selectedItemsCount = 0;
             int flowForSelectedItems = 0;
-            int totalCapacity = 0;
 
             for (Map.Entry<Integer, Edge> entry : connectedItems.entrySet()) {
-            Integer item = entry.getKey();
-            Edge edge = entry.getValue();
-            if (graph.items.contains(item)) {
-                capacityForSelectedItems += edge.getCapacity();
-                if (edge.getCapacity() > 0) {
-                selectedItemsCount++;
+                Integer item = entry.getKey();
+                Edge edge = entry.getValue();
+                if (graph.items.contains(item)) {
+                    capacityForSelectedItems += edge.getCapacity();
+                    if (edge.getCapacity() > 0) {
+                        selectedItemsCount++;
+                    }
+                    flowForSelectedItems += edge.getFlow();//(edge.getCapacity() - edge.getFlow())/edge.getCapacity();
                 }
-                flowForSelectedItems += edge.getFlow();
-            }
-            totalCapacity += edge.getCapacity();
             }
 
             orderData.add(
-            List.of(
-                order,
-                capacityForSelectedItems,
-                selectedItemsCount,
-                flowForSelectedItems,
-                totalCapacity
-            )
+                List.of(
+                    order,
+                    capacityForSelectedItems,
+                    selectedItemsCount,
+                    flowForSelectedItems
+                )
             );
         }
 
-        orderData.sort((a, b) -> {
-            int cmp = b.get(1).compareTo(a.get(1));
-            if (cmp != 0) return cmp;
-            cmp = a.get(2).compareTo(b.get(2));
-            if (cmp != 0) return cmp;
-            cmp = a.get(3).compareTo(b.get(3));
-            if (cmp != 0) return cmp;
-            return a.get(4).compareTo(b.get(4));
-        });
+        sortPriorities(orderData);
 
         List<Integer> sortedOrders = new ArrayList<>();
         for (List<Integer> data : orderData) {
@@ -470,9 +473,112 @@ public class StateMachine {
         
         findCompletedOrders();
 
+        usedCorridors = removeUnnecessaryCorridors(
+            usedCorridors,
+            maxCombinations,
+            maxLenCombinations
+        );
+
         totalItems = totalSumList(totalRequired);
     
         /* TODO: Remove unnecessary corridors */
+    }
+
+    private int findIndex(List<Integer> list, int value) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i) == value) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private List<Integer> removeUnnecessaryCorridors(
+        List<Integer> usedCorridors,
+        int maxCombinations,
+        int maxLenCombinations
+    ) {
+        int maxLenCombination = Math.max(3, maxLenCombinations);
+        int totalOfCombinations = (int) ((Math.pow(2, maxLenCombination) - 1) * usedCorridors.size());
+        if (totalOfCombinations > maxCombinations) {
+            maxLenCombination = (int) (Math.log(maxCombinations / usedCorridors.size() + 1) / Math.log(2));
+            totalOfCombinations = (int) ((Math.pow(2, maxLenCombination) - 1) * usedCorridors.size());
+        }
+
+        int rMemory = 0;
+        boolean foundCombinations = false;
+
+        for (int r = maxLenCombination; r > 0; r--) {
+            if (usedCorridors.size() == 1 || foundCombinations || ordersCompleted.isEmpty() || totalSumList(totalRequired) < graph.waveSizeLB) {
+                break;
+            }
+            rMemory = r;
+            List<List<Integer>> combinations = generateCombinations(new ArrayList<>(usedCorridors), r);
+            for (List<Integer> combo : combinations) {
+                List<Integer> totalCombo = new ArrayList<>(Collections.nCopies(graph.nItems, 0));
+                for (int corridor : combo) {
+                    sumVectors(totalCombo, matrixCorridors.get(corridor));
+                }
+                boolean remove = true;
+                for (int i = 0; i < totalAvailable.size(); i++) {
+                    if (totalAvailable.get(i) - totalCombo.get(i) < totalRequired.get(i)) {
+                        remove = false;
+                        break;
+                    }
+                }
+
+                if (remove) {
+                    if (VERBOSE) {
+                        System.out.println("\033[1m\033[94m" + combo.size() + "/" + usedCorridors.size() + " is unnecessary \033[0m");
+                    }
+                    for (int corridor : combo) {
+                        if (VERBOSE)
+                            System.out.println("Removing corridor " + corridor);
+                        usedCorridors.remove(findIndex(usedCorridors, corridor));
+                        List<Integer> aux = new ArrayList<>();
+                        for (int value : matrixCorridors.get(corridor)) {
+                            aux.add(-1 * value);
+                        }
+                        sumVectors(totalAvailable, aux);
+                    }
+                    foundCombinations = true;
+                    break;
+                }
+            }
+        }
+
+        if (rMemory >= maxLenCombination) {
+            maxLenCombination = rMemory + 1;
+        } else {
+            maxLenCombination = Math.max(1, rMemory - 1);
+        }
+
+        return usedCorridors;
+    }
+
+    private List<List<Integer>> generateCombinations(List<Integer> corridors, int r) {
+        List<List<Integer>> combinations = new ArrayList<>();
+        int n = corridors.size();
+        int[] indices = new int[r];
+        for (int i = 0; i < r; i++) {
+            indices[i] = i;
+        }
+        while (indices[r - 1] < n) {
+            List<Integer> combination = new ArrayList<>();
+            for (int i = 0; i < r; i++) {
+                combination.add(corridors.get(indices[i]));
+            }
+            combinations.add(combination);
+            int t = r - 1;
+            while (t != 0 && indices[t] == n - r + t) {
+                t--;
+            }
+            indices[t]++;
+            for (int i = t + 1; i < r; i++) {
+                indices[i] = indices[i - 1] + 1;
+            }
+        }
+        return combinations;
     }
 
 }

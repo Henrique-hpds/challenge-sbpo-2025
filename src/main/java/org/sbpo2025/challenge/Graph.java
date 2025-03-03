@@ -126,6 +126,7 @@ class Graph {
 
     public Graph(
         Map<Integer, Vertex> vertices,
+        int totalFlow,
         List<Integer> items,
         List<Integer> orders,
         List<Integer> corridors,
@@ -138,6 +139,7 @@ class Graph {
         int id;
         Vertex vertex;
         this.vertices = new HashMap<>();
+        this.totalFlow = totalFlow;
         for (var entry : vertices.entrySet()) {            
             id = entry.getKey();
             vertex = entry.getValue();
@@ -180,6 +182,12 @@ class Graph {
         this.solverCorridors = null;
     }
 
+    public Graph clone() {
+        return new Graph(
+            vertices, totalFlow, items, orders, corridors, matrixOrders, matrixCorridors, nItems, waveSizeLB, waveSizeUB
+        );
+    }
+
     public Map<Integer, Vertex> getVertices() {
         return new HashMap<>(vertices);
     }
@@ -216,11 +224,6 @@ class Graph {
         return corridorId - nItems - 2;
     }
 
-    public Graph clone() {
-        return new Graph(
-            vertices, items, orders, corridors, matrixOrders, matrixCorridors, nItems, waveSizeLB, waveSizeUB
-        );
-    }
 
     public void linkOrders() {
         for (int i = 0; i < matrixOrders.size(); i++) {
@@ -418,6 +421,23 @@ class Graph {
 
         return flow > 0;
     }
+    
+    private boolean bfs(Map<Integer, Integer> parent, int corridor) {
+        parent.put(getSinkId(), corridor);
+        for (int item : getVertex(corridor).getReverseEdges().keySet()) {
+            if (getVertex(item).getFlow(corridor) < getVertex(item).getCapacity(corridor)) {
+                for (int order : getVertex(item).getReverseEdges().keySet()) {
+                    if (getVertex(order).getFlow(item) < getVertex(order).getCapacity(item)) {
+                        parent.put(corridor, item);
+                        parent.put(item, order);
+                        parent.put(order, getSourceId());
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
 
     public Map<Integer, Integer> findAugmentingPath(List<Integer> corridors, List<Integer> items, List<Integer> orders) {
         Map<Integer, Integer> parent = new HashMap<>();
@@ -577,5 +597,18 @@ class Graph {
         }
         return copy;
     }
+
+    public boolean expandFlowByCorridors(List<Integer> listCorridors) {
+        boolean augmentingPathFound = false;
+        for (int corridor : listCorridors) {
+            HashMap<Integer, Integer> parent = new HashMap<>();
+            if (bfs(parent, corridor)) {
+                augmentingPathFound = true;
+                augmentFlow(parent);
+            }
+        }
+        return augmentingPathFound;
+    }
+    
 
 }
