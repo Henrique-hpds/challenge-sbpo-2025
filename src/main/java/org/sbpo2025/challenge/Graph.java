@@ -221,7 +221,7 @@ class Graph {
     }
 
     public int getCorridorNumber(int corridorId) {
-        return corridorId - nItems - 2;
+        return corridorId - (nItems + 2);
     }
 
 
@@ -423,20 +423,37 @@ class Graph {
     }
     
     private boolean bfs(Map<Integer, Integer> parent, int corridor) {
-        parent.put(getSinkId(), corridor);
+        List<List<Integer>> orderPriority = new ArrayList<>();
         for (int item : getVertex(corridor).getReverseEdges().keySet()) {
             if (getVertex(item).getFlow(corridor) < getVertex(item).getCapacity(corridor)) {
                 for (int order : getVertex(item).getReverseEdges().keySet()) {
                     if (getVertex(order).getFlow(item) < getVertex(order).getCapacity(item)) {
-                        parent.put(corridor, item);
-                        parent.put(item, order);
-                        parent.put(order, getSourceId());
-                        return true;
+                        orderPriority.add(List.of(order, item, getVertex(order).getCapacity(item) - getVertex(order).getFlow(item)));
                     }
                 }
             }
         }
-        return false;
+
+        if (orderPriority.isEmpty()) {
+            return false;
+        }
+
+        // pegar ordem mais próxima da saturação
+        orderPriority.sort((a, b) -> {
+            for (int i = 2; i < a.size(); i++) {
+                int cmp = b.get(i).compareTo(a.get(i));
+                if (cmp != 0) return cmp;
+            }
+            return 0;
+        });
+
+        int order = orderPriority.get(0).get(0);
+        int item = orderPriority.get(0).get(1);
+        parent.put(getSinkId(), corridor);
+        parent.put(corridor, item);
+        parent.put(item, order);
+        parent.put(order, getSourceId());
+        return true;
     }
 
     public Map<Integer, Integer> findAugmentingPath(List<Integer> corridors, List<Integer> items, List<Integer> orders) {
@@ -491,14 +508,18 @@ class Graph {
             System.out.println("ITEMS AVAILABLE:" + itemsAvailable);
         }
 
+        int i = 0;
         for (List<Integer> order : matrixOrders) {
             boolean valid = true;
             for (int idx = 0; idx < order.size(); idx++) {
                 if (order.get(idx) > itemsAvailable.get(idx)) {
+                    if (VERBOSE)
+                        System.out.println("Order " + i + " is impossible");
                     valid = false;
                     break;
                 }
             }
+            i++;
             if (valid) {
                 nValidOrders++;
             } else {
@@ -602,7 +623,8 @@ class Graph {
         boolean augmentingPathFound = false;
         for (int corridor : listCorridors) {
             HashMap<Integer, Integer> parent = new HashMap<>();
-            if (bfs(parent, corridor)) {
+            int flowAntes = totalFlow;
+            if (bfs(parent, getCorridorId(corridor))) {
                 augmentingPathFound = true;
                 augmentFlow(parent);
             }

@@ -83,8 +83,6 @@ public class StateMachine {
                 System.out.println("Flow: " + graph.totalFlow);
                 System.out.println("");
             }
-
-            /* TODO: expansão baseada em corredores (Do Contra) */
             
             if (resetCondition()) {
                 if (VERBOSE) {
@@ -95,11 +93,7 @@ public class StateMachine {
 
             if (graph.waveSizeLB <= graph.totalFlow) {
                 analyzeFlow(2, 500);
-                if (
-                    usedCorridors.size() != 0 &&
-                    graph.waveSizeLB <= totalItems &&
-                    totalItems <= graph.waveSizeUB
-                ) {
+                if (totalItems >= graph.waveSizeLB) {
                     updateInfo();
                     if (VERBOSE) {
                         System.out.println("Info updated");
@@ -111,7 +105,7 @@ public class StateMachine {
             }
 
             if (iterations % 100 == 0) {
-                System.out.println("Iteration: " + iterations + " -- Flow: " + graph.totalFlow + " -- Current ratio " + currentInfo.ratio + " -- Best: " + bestInfo.ratio + " -- Time: " + ((long) ((double) System.currentTimeMillis() / (long) 1000) - startTime));
+                System.out.println("Iteration: " + iterations + " -- Flow: " + graph.totalFlow + " -- Current ratio " + currentInfo.ratio + " -- #Corridors " + usedCorridors.size() + " -- #Orders " + ordersCompleted.size() + " -- Total items " + totalItems + " -- Best: " + bestInfo.ratio + " -- Time: " + ((long) ((double) System.currentTimeMillis() / (long) 1000) - startTime));
             }
 
             if (stoppingCondition()) {
@@ -126,6 +120,14 @@ public class StateMachine {
 
         Set<Integer> setOrdersCompleted = new HashSet<>(bestInfo.usedOrders);
         Set<Integer> setUsedCorridors = new HashSet<>(bestInfo.usedCorridors);
+
+        int items = 0;
+        for (int order : setOrdersCompleted) {
+            items += totalSumList(matrixOrders.get(order));
+        }
+        System.out.println("Total items: " + items);
+        System.out.println("Orders completed: " + setOrdersCompleted);
+        System.out.println("Used corridors: " + setUsedCorridors);
 
         return new ChallengeSolution(setOrdersCompleted, setUsedCorridors);
     }
@@ -172,6 +174,7 @@ public class StateMachine {
         boolReset = boolReset && !(currentRatio >= 0.9 * bestInfo.ratio);
         boolReset = boolReset && !(currentRatio <= 0.5);
         // Reset the graph when the flow reaches 90% of the maximum allowed flow, but only at the "beginning of the code"
+        //teste, antes era  total flow
         if (graph.totalFlow >= 0.9 * graph.waveSizeUB && !maximumFlowEnable) {
             boolReset = true;
         }
@@ -184,7 +187,7 @@ public class StateMachine {
             boolReset = true;
             restartGraph = 10000;
         }
-        return boolReset;
+        return false;
     }
 
     private void resetGraph() {
@@ -295,7 +298,7 @@ public class StateMachine {
             for (Map.Entry<Integer, Edge> entry : items.entrySet()) {
                 Edge item = entry.getValue();
                 if (item.getCapacity() - item.getFlow() > 0) {
-                    diverseItems++;
+                    diverseItems += item.getCapacity() - item.getFlow();
                 }
             }
             int corridorCapacity = graph.getVertex(idCorridor).getCapacity(idSink);// - graph.getVertex(idCorridor).getFlow(idSink);
@@ -303,7 +306,7 @@ public class StateMachine {
             corridorData.add(
                 List.of(
                     idCorridor,
-                    diverseItems,
+                    -diverseItems,
                     corridorCapacity
                 )
             );
@@ -432,7 +435,11 @@ public class StateMachine {
     }
 
     private int totalSumList(List<Integer> list) {
-        return list.stream().mapToInt(Integer::intValue).sum();
+        int sum = 0;
+        for (int value : list) {
+            sum += value;
+        }
+        return sum;
     }
 
     private void updateInfo() {
@@ -473,11 +480,11 @@ public class StateMachine {
         
         findCompletedOrders();
 
-        usedCorridors = removeUnnecessaryCorridors(
-            usedCorridors,
-            maxCombinations,
-            maxLenCombinations
-        );
+        // usedCorridors = removeUnnecessaryCorridors(
+        //     usedCorridors,
+        //     maxCombinations,
+        //     maxLenCombinations
+        // );
 
         totalItems = totalSumList(totalRequired);
     
