@@ -230,8 +230,9 @@ class Graph {
             List<Integer> order = matrixOrders.get(i);
             int totalItems = order.stream().mapToInt(Integer::intValue).sum();
             
-            boolean allZero = order.stream().allMatch(quantity -> quantity == 0);
-            if (!allZero) {
+            // pequena otimização, colocar apenas o primeiro elemento de um pedudo impossível com -1
+            boolean impossibleOrder = order.get(0) == -1;
+            if (!impossibleOrder) {
                 addOrder(i, totalItems);    
                 for (Map.Entry<Integer, Integer> entry : solverOrders.get(i).entrySet()) {
                     int item = entry.getKey();
@@ -414,7 +415,8 @@ class Graph {
         while (v != getSourceId()) {
             int u = parent.get(v);
             addFlow(u, v, flow);
-            addFlow(v, u, -flow);
+            // não usamos o residual
+            // addFlow(v, u, -flow);
             v = u;
         }
         this.totalFlow += flow;
@@ -489,6 +491,16 @@ class Graph {
         this.totalFlow = 0;
     }
 
+    public List<Integer> getUsedCorridors() {
+        List<Integer> usedCorridors = new ArrayList<>();
+        for (int corridorId : corridors) {
+            if (getVertex(corridorId).getFlow(getSinkId()) > 0) {
+                usedCorridors.add(getCorridorNumber(corridorId));
+            }
+        }
+        return usedCorridors;
+    }
+
     private void removeImpossibleOrders() {
         List<Integer> itemsAvailable = new ArrayList<>();
         int nValidOrders = 0;
@@ -523,7 +535,7 @@ class Graph {
             if (valid) {
                 nValidOrders++;
             } else {
-                Collections.fill(order, 0);
+                order.set(0, -1);
                 nInvalidOrders++;
             }
         }
@@ -619,14 +631,32 @@ class Graph {
         return copy;
     }
 
+    private void printParent(Map<Integer, Integer> parent) {
+        int corridor = parent.get(getSinkId());
+        int item = parent.get(corridor);
+        int order = parent.get(item);
+        System.out.printf(
+            "Expand by corridors: %s_%d --(%d/%d)-> %s_%d --(%d/%d)-> %s_%d --(%d/%d)-> %s_%d --(%d/%d)-> %s_%d\n", 
+            getVertexType(getSourceId()), getSourceId(),
+            getVertex(getSourceId()).getFlow(order), getVertex(getSourceId()).getCapacity(order),
+            getVertexType(order), getVertexNumber(order),
+            getVertex(order).getFlow(item), getVertex(order).getCapacity(item),
+            getVertexType(item), getVertexNumber(item),
+            getVertex(item).getFlow(corridor), getVertex(item).getCapacity(corridor),
+            getVertexType(corridor), getVertexNumber(corridor),
+            getVertex(corridor).getFlow(getSinkId()), getVertex(corridor).getCapacity(getSinkId()),
+            getVertexType(getSinkId()), getSinkId()
+        );
+    }
+
     public boolean expandFlowByCorridors(List<Integer> listCorridors) {
         boolean augmentingPathFound = false;
         for (int corridor : listCorridors) {
             HashMap<Integer, Integer> parent = new HashMap<>();
-            int flowAntes = totalFlow;
             if (bfs(parent, getCorridorId(corridor))) {
-                augmentingPathFound = true;
-                augmentFlow(parent);
+                augmentingPathFound = augmentFlow(parent);
+                if (VERBOSE)
+                    printParent(parent);
             }
         }
         return augmentingPathFound;

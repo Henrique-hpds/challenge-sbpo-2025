@@ -56,6 +56,7 @@ public class StateMachine {
     public ChallengeSolution run() {
         Map<Integer, Integer> parent;
 
+        int lastPrintedIteration = 0;
         int maxUB = 5, counterUB = 0;
 
         while (true) {
@@ -67,27 +68,33 @@ public class StateMachine {
                 break;
             }
 
-            if (!graph.expandFlowByCorridors(usedCorridors)) {
-                if (VERBOSE) {
-                    System.out.println("\033[1m\033[91mImpossível expandir.\033[0m");
-                }
-            }
-
-            /* TODO: folga nos corredores */
-            
             graph.augmentFlow(parent);
+            int totalFlow = graph.totalFlow;
             if (VERBOSE)
                 printParent(parent);
-            
-            if (VERBOSE){
-                System.out.println("Flow: " + graph.totalFlow);
-                System.out.println("");
-            }
-            
+
+            List<Integer> expansionCorridors = graph.getUsedCorridors();
+            graph.expandFlowByCorridors(expansionCorridors);
+            int newTotalFlow = graph.totalFlow;
+
+            int counter = 0;
+            int thresholdLoopCorridors = 1000000;
+            while (newTotalFlow > totalFlow && counter < thresholdLoopCorridors) {
+                counter++;
+                totalFlow = newTotalFlow;
+                if (! graph.expandFlowByCorridors(expansionCorridors)) 
+                    break;
+                newTotalFlow = graph.totalFlow;
+                iterations++;
+            };
+
+            totalFlow = graph.totalFlow;
+
+            /* TODO: folga nos corredores */
+ 
             if (resetCondition()) {
-                if (VERBOSE) {
+                if (VERBOSE)
                     System.out.println("\033[1m\033[91mReset condition met.\033[0m");
-                }
                 resetGraph();
             }
 
@@ -104,8 +111,9 @@ public class StateMachine {
                 }
             }
 
-            if (iterations % 100 == 0) {
+            if (iterations - lastPrintedIteration >= 50 || iterations == 0) {
                 System.out.println("Iteration: " + iterations + " -- Flow: " + graph.totalFlow + " -- Current ratio " + currentInfo.ratio + " -- #Corridors " + usedCorridors.size() + " -- #Orders " + ordersCompleted.size() + " -- Total items " + totalItems + " -- Best: " + bestInfo.ratio + " -- Time: " + ((long) ((double) System.currentTimeMillis() / (long) 1000) - startTime));
+                lastPrintedIteration = iterations;
             }
 
             if (stoppingCondition()) {
@@ -132,13 +140,18 @@ public class StateMachine {
         return new ChallengeSolution(setOrdersCompleted, setUsedCorridors);
     }
 
-    final private float endTime = 600;
+    final private double endTime = 600;
     final private Integer maxIterations = 5000;
 
     private boolean stoppingCondition() {
-        float currentTime = System.currentTimeMillis() / 1000;
-        if (currentTime - startTime >= endTime * 0.95 || iterations >= maxIterations || hardReset > 5) 
+        double currentTime = (double) System.currentTimeMillis() / 1000.0;
+        int maxHardReset = 10;
+        if (currentTime - startTime >= endTime * 0.95 || iterations >= maxIterations || hardReset > maxHardReset) {
+            System.out.println("\033[1m" + (currentTime - startTime >= endTime * 0.95 ? "\033[92m" : "\033[91m") + "Stopping due to time? " + (currentTime - startTime >= endTime * 0.95) + "\033[0m");
+            System.out.println("\033[1m" + (iterations >= maxIterations ? "\033[92m" : "\033[91m") + "Stopping due to iterations? " + (iterations >= maxIterations) + "\033[0m");
+            System.out.println("\033[1m" + (hardReset > maxHardReset ? "\033[92m" : "\033[91m") + "Stopping due to hard reset? " + (hardReset > maxHardReset) + "\033[0m");
             return true;
+        }
         return false;
     }
 
@@ -166,7 +179,7 @@ public class StateMachine {
         // And the current total flow is significantly greater than the best total flow
         boolReset = (boolReset && (graph.totalFlow - bestInfo.totalFlow) > graph.waveSizeUB / 10);
         // Or if the time is about to run out
-        boolReset = boolReset || (System.currentTimeMillis() / 1000 - startTime >= endTime * 0.90);
+        boolReset = boolReset || ((double) System.currentTimeMillis() / 1000.0 - startTime >= endTime * 0.90);
         boolReset = boolReset || (previousRatio != 0 && Math.abs(currentRatio / previousRatio) < 0.3 && 
                   currentRatio != 0 && previousRatio > 10 && graph.totalFlow > graph.waveSizeLB * 1.2);
         // And the current ratio is less than 90% of the best ratio
@@ -187,7 +200,7 @@ public class StateMachine {
             boolReset = true;
             restartGraph = 10000;
         }
-        return false;
+        return boolReset;
     }
 
     private void resetGraph() {
@@ -197,7 +210,7 @@ public class StateMachine {
         if (restartGraph > latency * 2) {
             hardReset++;
             if (VERBOSE) 
-                System.out.println("Hard reset at the graph.");
+                System.out.println("Hard reset at the graph. Iteration: " + iterations);
             
             graph.resetFlow();
             restartGraph = 0;
@@ -210,6 +223,8 @@ public class StateMachine {
                 System.out.println("Reset graph for maximum flow.");
             graph = bestInfo.graph.clone();
             currentInfo = bestInfo;
+            removeLessNeededCorridor();
+            analyzeFlow(2, 500);
             restartGraph++;
         }
     }
@@ -222,7 +237,7 @@ public class StateMachine {
         if (VERBOSE) {
             System.out.println("Items: " + items + " -- Upper bound: " + graph.waveSizeUB + " -- Lower bound: " + graph.waveSizeLB);
         }
-        if (items >= graph.waveSizeLB || usedCorridors.size() > 0){
+        if (items >= graph.waveSizeLB && usedCorridors.size() > 0) {
             return (float) items / usedCorridors.size();
         }
         return 0f;
@@ -233,7 +248,7 @@ public class StateMachine {
         int item = parent.get(corridor);
         int order = parent.get(item);
         System.out.printf(
-            "Parent: %s %d --(%d/%d)-> %s %d --(%d/%d)-> %s %d --(%d/%d)-> %s %d --(%d/%d)-> %s %d\n", 
+            "Priority choice: %s_%d --(%d/%d)-> %s_%d --(%d/%d)-> %s_%d --(%d/%d)-> %s_%d --(%d/%d)-> %s_%d\n", 
             graph.getVertexType(graph.getSourceId()), graph.getSourceId(),
             graph.getVertex(graph.getSourceId()).getFlow(order), graph.getVertex(graph.getSourceId()).getCapacity(order),
             graph.getVertexType(order), graph.getVertexNumber(order),
@@ -291,22 +306,19 @@ public class StateMachine {
 
     private List<Integer> choiceCorridorPriority(Graph graph) {
         List<List<Integer>> corridorData = new ArrayList<>();
-        int idSink = graph.getSinkId();
-        for (Integer idCorridor : graph.corridors) {
-            Map<Integer, Edge> items = graph.getVertex(idCorridor).getReverseEdges();
-            int diverseItems = 0; // quantidade e intens não saturados
-            for (Map.Entry<Integer, Edge> entry : items.entrySet()) {
-                Edge item = entry.getValue();
-                if (item.getCapacity() - item.getFlow() > 0) {
-                    diverseItems += item.getCapacity() - item.getFlow();
+        for (Integer corridorId : graph.corridors) {
+            int diverseItems = 0;
+            for (int itemId: graph.getVertex(corridorId).getReverseEdges().keySet()) {
+                if (graph.getResidualCapacity(itemId, corridorId) > 0) {
+                    diverseItems++;
                 }
             }
-            int corridorCapacity = graph.getVertex(idCorridor).getCapacity(idSink);// - graph.getVertex(idCorridor).getFlow(idSink);
+            int corridorCapacity = graph.getResidualCapacity(corridorId, graph.getSinkId());
 
             corridorData.add(
                 List.of(
-                    idCorridor,
-                    -diverseItems,
+                    corridorId,
+                    diverseItems,
                     corridorCapacity
                 )
             );
@@ -327,19 +339,18 @@ public class StateMachine {
 
     private List<Integer> choiceItemPriority(Graph graph) {
         List<List<Integer>> itemData = new ArrayList<>();
-        Integer capacity = 0;
-        for (Integer idItem : graph.items) {
+        for (Integer itemId : graph.items) {
             int flowToCorridors = 0;
 
-            for (Integer corridor : graph.getVertex(idItem).getEdges().keySet()) {
-                capacity = graph.getVertex(idItem).getFlow(corridor);
-                flowToCorridors += capacity;
+            for (Integer corridorId : graph.getVertex(itemId).getEdges().keySet()) {
+                flowToCorridors += graph.getVertex(itemId).getFlow(corridorId);
             }
 
             itemData.add(
                 List.of(
-                    idItem,
-                    flowToCorridors
+                    itemId,
+                    flowToCorridors,
+                    -itemId
                 )
             );
         }
@@ -360,8 +371,8 @@ public class StateMachine {
     private List<Integer> choiceOrderPriority(Graph graph) {
         List<List<Integer>> orderData = new ArrayList<>();
 
-        for (Integer order : graph.orders) {
-            Map<Integer, Edge> connectedItems = graph.getVertex(order).getEdges();
+        for (Integer orderId : graph.orders) {
+            Map<Integer, Edge> connectedItems = graph.getVertex(orderId).getEdges();
             int capacityForSelectedItems = 0;
             int selectedItemsCount = 0;
             int flowForSelectedItems = 0;
@@ -374,16 +385,17 @@ public class StateMachine {
                     if (edge.getCapacity() > 0) {
                         selectedItemsCount++;
                     }
-                    flowForSelectedItems += edge.getFlow();//(edge.getCapacity() - edge.getFlow())/edge.getCapacity();
+                    flowForSelectedItems += (edge.getCapacity() - edge.getFlow())/edge.getCapacity();
                 }
             }
 
             orderData.add(
                 List.of(
-                    order,
+                    orderId,
                     capacityForSelectedItems,
                     selectedItemsCount,
-                    flowForSelectedItems
+                    flowForSelectedItems,
+                    -orderId
                 )
             );
         }
@@ -480,11 +492,11 @@ public class StateMachine {
         
         findCompletedOrders();
 
-        // usedCorridors = removeUnnecessaryCorridors(
-        //     usedCorridors,
-        //     maxCombinations,
-        //     maxLenCombinations
-        // );
+        usedCorridors = removeUnnecessaryCorridors(
+            usedCorridors,
+            maxCombinations,
+            maxLenCombinations
+        );
 
         totalItems = totalSumList(totalRequired);
     
@@ -498,6 +510,64 @@ public class StateMachine {
             }
         }
         return -1;
+    }
+
+    private boolean removeCorridor(int corridorId) {
+        int flow, removedTotalFlow = 0, total = graph.getVertex(corridorId).getFlow(graph.getSinkId());
+        for (int itemId : graph.getVertex(corridorId).getEdges().keySet()) {
+            if (graph.getVertex(itemId).getFlow(corridorId) > 0) {
+                for (int orderId : graph.getVertex(itemId).getEdges().keySet()) {
+                    if (! ordersCompleted.contains(graph.getOrderNumber(orderId))) {
+                        flow = Math.min(Math.min(
+                            graph.getVertex(orderId).getFlow(itemId),
+                            graph.getVertex(itemId).getFlow(corridorId)
+                        ), total);
+
+                        if (flow < 0) {
+                            if (VERBOSE) {
+                                System.out.println("\033[91mError in remove corridorId: " + corridorId + " : flow: " + flow + ".\033[0m (function -> remove_corridor)");
+                            }
+                            continue;
+                        }
+
+                        graph.addFlow(graph.getSourceId(), orderId, -flow);
+                        graph.addFlow(orderId, itemId, -flow);
+                        graph.addFlow(itemId, corridorId, -flow);
+                        graph.addFlow(corridorId, graph.getSinkId(), -flow);
+
+                        removedTotalFlow += flow;
+                        total -= flow;
+                        graph.totalFlow -= flow;
+                    }
+                }
+            }
+        }
+        return total == 0;
+    }
+
+    private void removeLessNeededCorridor() {
+        int corridorId;
+        for (int i = 0; i < usedCorridors.size(); i++) {
+            for (int j = 0; j < usedCorridors.size() - 1; j++) {
+                if (graph.getVertex(graph.getCorridorId(usedCorridors.get(j))).getFlow(graph.getSinkId()) >
+                        graph.getVertex(graph.getCorridorId(usedCorridors.get(j + 1))).getFlow(graph.getSinkId())) {
+                    int aux = usedCorridors.get(j + 1);
+                    usedCorridors.set(j + 1, usedCorridors.get(j));
+                    usedCorridors.set(j, aux);
+                }
+            }
+        }
+        int counter = 0;
+        for (int corridor : usedCorridors) {
+            corridorId = graph.getCorridorId(corridor);
+            // System.out.println("Removing corridor " + corridor);
+            // System.out.println(removeCorridor(corridorId));
+
+            if (counter >= usedCorridors.size() / 5) {
+                break;
+            }
+            counter++;
+        }
     }
 
     private List<Integer> removeUnnecessaryCorridors(
@@ -539,7 +609,7 @@ public class StateMachine {
                         System.out.println("\033[1m\033[94m" + combo.size() + "/" + usedCorridors.size() + " is unnecessary \033[0m");
                     }
                     for (int corridor : combo) {
-                        if (VERBOSE)
+                        // if (VERBOSE)
                             System.out.println("Removing corridor " + corridor);
                         usedCorridors.remove(findIndex(usedCorridors, corridor));
                         List<Integer> aux = new ArrayList<>();

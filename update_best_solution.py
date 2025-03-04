@@ -4,7 +4,7 @@ import shutil
 from checker import WaveOrderPicking
 from typing import *
 
-dir_best_solution = "../best_solution"
+dir_best_solution = "./best_solution"
 
 
 def update_best_solution(path_input: str, path_possible_solution: str, path_best_solution: str) -> Tuple[int, int]:
