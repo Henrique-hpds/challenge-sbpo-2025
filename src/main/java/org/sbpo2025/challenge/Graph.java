@@ -1,5 +1,7 @@
 package org.sbpo2025.challenge;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -92,6 +94,10 @@ class Graph {
     public Integer waveSizeLB;
     public Integer waveSizeUB;
     public ChallengeSolver solver;
+    public List<String> currentParents = new ArrayList<String>();
+    public List<String> prevParents = new ArrayList<String>();
+
+    
 
     public Graph(
         List<Map<Integer, Integer>> orders,
@@ -415,11 +421,11 @@ class Graph {
         while (v != getSourceId()) {
             int u = parent.get(v);
             addFlow(u, v, flow);
-            // não usamos o residual
-            // addFlow(v, u, -flow);
             v = u;
         }
         this.totalFlow += flow;
+        String hashParent = generateHashForParent(parent);
+        currentParents.add(hashParent);
 
         return flow > 0;
     }
@@ -427,7 +433,7 @@ class Graph {
     private boolean bfs(Map<Integer, Integer> parent, int corridor) {
         List<List<Integer>> orderPriority = new ArrayList<>();
         for (int item : getVertex(corridor).getReverseEdges().keySet()) {
-            if (getVertex(item).getFlow(corridor) < getVertex(item).getCapacity(corridor)) {
+            if (getVertex(item).getFlow(corridor) < getVertex(item).getCapacity(corridor)) { 
                 for (int order : getVertex(item).getReverseEdges().keySet()) {
                     if (getVertex(order).getFlow(item) < getVertex(order).getCapacity(item)) {
                         orderPriority.add(List.of(order, item, getVertex(order).getCapacity(item) - getVertex(order).getFlow(item)));
@@ -662,5 +668,29 @@ class Graph {
         return augmentingPathFound;
     }
     
+    public String generateHashForParent(Map<Integer, Integer> parent) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+            StringBuilder sb = new StringBuilder();
+
+            for (Map.Entry<Integer, Integer> entry : parent.entrySet()) {
+                sb.append(entry.getKey()).append("=").append(entry.getValue()).append(";");
+            }
+
+            byte[] hashBytes = digest.digest(sb.toString().getBytes());
+
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hashBytes) {
+                hexString.append(String.format("%02x", b));
+            }
+
+            return hexString.toString();
+
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Error generating hash for parent map", e);
+        }
+    }
+
 
 }

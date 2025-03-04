@@ -7,6 +7,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public class StateMachine {
     Integer latency;
@@ -25,7 +29,7 @@ public class StateMachine {
     List<Integer> memoryCorridors;
     List<Integer> memoryOrders;
 
-    private long startTime;
+    private double startTime;
 
     final private List<Integer> totalAvailable;
     final private List<Integer> totalRequired;
@@ -50,7 +54,7 @@ public class StateMachine {
         usedCorridors = new ArrayList<>();
         ordersCompleted = new ArrayList<>();
         maximumFlowEnable = false;
-        startTime = (long) ((double) System.currentTimeMillis() / (long) 1000);
+        startTime = getCurrentTime();
     }
 
     public ChallengeSolution run() {
@@ -102,6 +106,7 @@ public class StateMachine {
                 analyzeFlow(2, 500);
                 if (totalItems >= graph.waveSizeLB) {
                     updateInfo();
+                    graph.prevParents = new ArrayList<>(graph.currentParents);
                     if (VERBOSE) {
                         System.out.println("Info updated");
                         System.out.println("Objective function: " + currentInfo.ratio + " -- BEST: " + bestInfo.ratio);
@@ -112,7 +117,7 @@ public class StateMachine {
             }
 
             if (iterations - lastPrintedIteration >= 50 || iterations == 0) {
-                System.out.println("Iteration: " + iterations + " -- Flow: " + graph.totalFlow + " -- Current ratio " + currentInfo.ratio + " -- #Corridors " + usedCorridors.size() + " -- #Orders " + ordersCompleted.size() + " -- Total items " + totalItems + " -- Best: " + bestInfo.ratio + " -- Time: " + ((long) ((double) System.currentTimeMillis() / (long) 1000) - startTime));
+                System.out.println("Iteration: " + iterations + " -- Flow: " + graph.totalFlow + " -- Current ratio " + currentInfo.ratio + " -- #Corridors " + usedCorridors.size() + " -- #Orders " + ordersCompleted.size() + " -- Total items " + totalItems + " -- Best: " + bestInfo.ratio + " -- Time: " + (getCurrentTime() - startTime));
                 lastPrintedIteration = iterations;
             }
 
@@ -137,7 +142,20 @@ public class StateMachine {
         System.out.println("Orders completed: " + setOrdersCompleted);
         System.out.println("Used corridors: " + setUsedCorridors);
 
+        writeOutput();
+
         return new ChallengeSolution(setOrdersCompleted, setUsedCorridors);
+    }
+
+    private void writeOutput() {
+        try (FileWriter writer = new FileWriter("tmp_output.csv", false)) {
+            writer.append(String.valueOf(bestInfo.ratio));
+            writer.append(",");
+            writer.append(String.valueOf(bestInfo.time - startTime));
+            writer.append("\n");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     final private double endTime = 600;
@@ -165,7 +183,7 @@ public class StateMachine {
         // talvez valha a pena criar parâmetros que detectem isso e tratem esse caso 
 
         // If the current ratio is less than 75% of the best ratio and more than 60 seconds have passed
-        boolean boolReset = (System.currentTimeMillis() / 1000 - bestInfo.time > 60) && 
+        boolean boolReset = (getCurrentTime()- bestInfo.time > 60) && 
                 (bestInfo.ratio != 0 && (currentRatio / bestInfo.ratio) < 0.75);
         // The current total flow is significantly greater than the best total flow and without the best ratio
         boolReset = boolReset || (((graph.totalFlow - bestInfo.totalFlow) > graph.waveSizeUB / 5) && 
@@ -179,7 +197,7 @@ public class StateMachine {
         // And the current total flow is significantly greater than the best total flow
         boolReset = (boolReset && (graph.totalFlow - bestInfo.totalFlow) > graph.waveSizeUB / 10);
         // Or if the time is about to run out
-        boolReset = boolReset || ((double) System.currentTimeMillis() / 1000.0 - startTime >= endTime * 0.90);
+        boolReset = boolReset || (getCurrentTime() - startTime >= endTime * 0.90);
         boolReset = boolReset || (previousRatio != 0 && Math.abs(currentRatio / previousRatio) < 0.3 && 
                   currentRatio != 0 && previousRatio > 10 && graph.totalFlow > graph.waveSizeLB * 1.2);
         // And the current ratio is less than 90% of the best ratio
@@ -366,6 +384,10 @@ public class StateMachine {
             System.out.print("Item priority: " + sortedItems + "\n");
 
         return sortedItems;
+    }
+
+    private double getCurrentTime() {
+        return ((double) System.currentTimeMillis() / 1000.0);
     }
 
     private List<Integer> choiceOrderPriority(Graph graph) {
@@ -659,4 +681,3 @@ public class StateMachine {
     }
 
 }
-

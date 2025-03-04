@@ -9,21 +9,21 @@ public class IterationInfo implements Comparable<IterationInfo> {
     public Map<Integer, Vertex> vertices;
     Graph graph;
     float ratio;
-    float time;
+    double time;
     int iteration;
     List<Integer> usedCorridors;
     List<Integer> usedOrders;
-    final float startTime;
+    final double startTime;
 
     public IterationInfo(
-        int totalFlow, Graph graph, float ratio, int iteration, float startTime,
+        int totalFlow, Graph graph, float ratio, int iteration, double startTime,
         List<Integer> usedCorridors, List<Integer> usedOrders
     ) {
         this.totalFlow = totalFlow;
         this.vertices = graph.getVerticesCopy();
         this.graph = graph;
         this.ratio = ratio;
-        this.time = System.currentTimeMillis() / 1000;
+        this.time = (double) System.currentTimeMillis() / 1000;
         this.iteration = iteration;
         this.startTime = startTime;
         this.usedOrders = new ArrayList<>();
